@@ -69,7 +69,7 @@ const SociogramApp = () => {
   const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({});
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const exportAs = useCallback(async (type: 'jpg' | 'pdf') => {
+  const exportAs = useCallback(async () => {
     const svg = svgRef.current;
     if (!svg) return;
 
@@ -110,24 +110,11 @@ const SociogramApp = () => {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      if (type === 'jpg') {
-        const data = canvas.toDataURL('image/jpeg', 0.95);
-        const a = document.createElement('a');
-        a.href = data;
-        a.download = 'sociogram.jpg';
-        a.click();
-      } else {
-        // dynamic import to avoid SSR problems
-        const { jsPDF } = await import('jspdf');
-        const pdf = new jsPDF({
-          orientation: width > height ? 'landscape' : 'portrait',
-          unit: 'pt',
-          format: [width, height]
-        });
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
-        pdf.save('sociogram.pdf');
-      }
+      const data = canvas.toDataURL('image/jpeg', 0.95);
+      const a = document.createElement('a');
+      a.href = data;
+      a.download = 'sociogram.jpg';
+      a.click();
     } catch (err) {
       console.error('Export failed', err);
       alert('ไม่สามารถดาวน์โหลดได้ (ดูคอนโซล)');
@@ -260,13 +247,9 @@ const SociogramApp = () => {
         <div className="w-full flex flex-col items-center">
           <div className="w-full flex justify-end gap-2 mb-2">
             <button
-              onClick={() => exportAs('jpg')}
+              onClick={() => exportAs()}
               className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm"
             >ดาวน์โหลด JPG</button>
-            <button
-              onClick={() => exportAs('pdf')}
-              className="px-3 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md text-sm"
-            >ดาวน์โหลด PDF</button>
           </div>
           <SociogramGraph
             students={students}
