@@ -381,9 +381,9 @@ const SociogramApp = () => {
                 <table className="min-w-full border-collapse border border-gray-300">
                   <thead>
                     <tr className="bg-purple-100">
-                      <th className="border border-gray-300 px-4 py-2 sticky left-0 bg-purple-100">ผู้เลือก ↓ / ผู้ถูกเลือก →</th>
+                      <th className="border border-gray-300 px-4 py-2 sticky left-0 bg-purple-100 text-gray-800">ผู้เลือก ↓ / ผู้ถูกเลือก →</th>
                       {students.map(s => (
-                        <th key={s.id} className="border border-gray-300 px-4 py-2 text-center min-w-[60px]">
+                        <th key={s.id} className="border border-gray-300 px-4 py-2 text-center min-w-[60px] text-gray-800">
                           {s.id}
                         </th>
                       ))}
@@ -392,7 +392,7 @@ const SociogramApp = () => {
                   <tbody>
                     {students.map(s1 => (
                       <tr key={s1.id} className="hover:bg-gray-50">
-                        <td className="border border-gray-300 px-4 py-2 font-semibold bg-purple-50 sticky left-0">
+                        <td className="border border-gray-300 px-4 py-2 font-semibold bg-purple-50 sticky left-0 text-gray-800">
                           {s1.id}
                         </td>
                         {students.map(s2 => {
@@ -402,7 +402,7 @@ const SociogramApp = () => {
                           return (
                             <td 
                               key={s2.id} 
-                              className={`border border-gray-300 px-2 py-2 text-center cursor-pointer hover:bg-blue-50 transition-colors ${
+                              className={`border border-gray-300 px-2 py-2 text-center text-gray-800 cursor-pointer hover:bg-blue-50 transition-colors ${
                                 s1.id === s2.id ? 'bg-gray-100' : ''
                               }`}
                               onClick={() => handleCellClick(s1.id, s2.id)}
@@ -427,7 +427,7 @@ const SociogramApp = () => {
                                   {value}
                                 </span>
                               ) : (
-                                <span className="text-gray-300 text-xs">แก้ไข</span>
+                                <span className="text-gray-700 text-xs">แก้ไข</span>
                               )}
                             </td>
                           );
@@ -523,7 +523,7 @@ const SociogramApp = () => {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {students.map(student => (
                     <div key={student.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-2 border border-gray-200">
-                      <span className="font-medium">
+                      <span className="font-medium text-gray-800">
                         <span className="text-purple-600 font-bold">{student.id}</span> - {student.name}
                       </span>
                       <button
