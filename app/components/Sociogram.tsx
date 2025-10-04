@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Network, Edit2, Plus, Trash2 } from 'lucide-react';
+import SociogramGraph from './SociogramGraph';
 
 interface Student {
   id: string;
@@ -66,7 +67,7 @@ const SociogramApp = () => {
   const [newStudentId, setNewStudentId] = useState('');
   const [newStudentName, setNewStudentName] = useState('');
   const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({});
-  const svgRef = useRef<SVGSVGElement | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const exportAs = useCallback(async (type: 'jpg' | 'pdf') => {
     const svg = svgRef.current;
@@ -267,80 +268,15 @@ const SociogramApp = () => {
               className="px-3 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md text-sm"
             >ดาวน์โหลด PDF</button>
           </div>
-          <svg ref={svgRef} width="800" height="600" className="border border-gray-300 rounded-lg bg-white">
-          <defs>
-            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-              <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
-            </marker>
-          </defs>
-
-          {selections.map((sel, i) => {
-            const from = positions[sel.from];
-            const to = positions[sel.to];
-            if (!from || !to) return null;
-
-            const isMutual = selections.some(s => s.from === sel.to && s.to === sel.from);
-            const color = sel.rank === 1 ? '#ef4444' : sel.rank === 2 ? '#3b82f6' : '#9ca3af';
-            
-            const dx = to.x - from.x;
-            const dy = to.y - from.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const nodeRadius = 20 + analysis.receivedCount[sel.to] * 8;
-            
-            const offsetX = (dx / dist) * nodeRadius;
-            const offsetY = (dy / dist) * nodeRadius;
-            
-            return (
-              <line
-                key={i}
-                x1={from.x}
-                y1={from.y}
-                x2={to.x - offsetX}
-                y2={to.y - offsetY}
-                stroke={color}
-                strokeWidth={isMutual ? 2.5 : 1.5}
-                opacity={0.6}
-                markerEnd="url(#arrowhead)"
-              />
-            );
-          })}
-
-          {students.map(student => {
-            const pos = positions[student.id];
-            if (!pos) return null;
-            
-            const isIsolated = analysis.receivedCount[student.id] === 0;
-            const isStar = analysis.receivedCount[student.id] >= 4;
-            const size = 20 + analysis.receivedCount[student.id] * 8;
-            
-            return (
-              <g key={student.id}>
-                <circle
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={size}
-                  fill={isIsolated ? '#ef4444' : isStar ? '#fbbf24' : '#8b5cf6'}
-                  stroke="#fff"
-                  strokeWidth="3"
-                  className="cursor-pointer hover:opacity-80 transition-opacity"
-                />
-                <text
-                  x={pos.x}
-                  y={pos.y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="white"
-                  fontSize="16"
-                  fontWeight="bold"
-                >
-                  {student.id}
-                </text>
-              </g>
-            );
-          })}
-          </svg>
+          <SociogramGraph
+            students={students}
+            selections={selections}
+            positions={positions}
+            receivedCount={analysis.receivedCount}
+            svgRef={svgRef}
+          />
+        </div>
       </div>
-    </div>
     );
   };
 
