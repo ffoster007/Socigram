@@ -78,18 +78,21 @@ const SociogramGraph: React.FC<Props> = ({
     const controlX = midX + perpX;
     const controlY = midY + perpY;
 
-    // รัศมีของโหนด (ขึ้นกับจำนวนครั้งที่ถูกเลือก)
-    const nodeRadiusTo = 20 + (receivedCount[toId] || 0) * 8;
-    const nodeRadiusFrom = 20 + (receivedCount[fromId] || 0) * 8;
+  // รัศมีของโหนด (ขึ้นกับจำนวนครั้งที่ถูกเลือก)
+  const nodeRadiusTo = 20 + (receivedCount[toId] || 0) * 10;
+  const nodeRadiusFrom = 20 + (receivedCount[fromId] || 0) * 10;
 
-    // ให้เส้นเริ่ม/สิ้นสุดที่ขอบวงกลมของโหนด ไม่ใช่จุดศูนย์กลาง
-    const startAngle = Math.atan2(from.y - controlY, from.x - controlX);
-    const startX = from.x - Math.cos(startAngle) * nodeRadiusFrom;
-    const startY = from.y - Math.sin(startAngle) * nodeRadiusFrom;
+  // offset เพื่อให้ลูกศรไม่จมลงในวงกลมของโหนด
+  const arrowOffset = 5; // ปรับได้ตามขนาด marker
 
-    const endAngle = Math.atan2(to.y - controlY, to.x - controlX);
-    const endX = to.x - Math.cos(endAngle) * nodeRadiusTo;
-    const endY = to.y - Math.sin(endAngle) * nodeRadiusTo;
+  // ให้เส้นเริ่ม/สิ้นสุดที่ขอบวงกลมของโหนด โดยเลื่อนออกไปอีกเล็กน้อยเพื่อเผื่อลูกศร
+  const startAngle = Math.atan2(from.y - controlY, from.x - controlX);
+  const startX = from.x - Math.cos(startAngle) * (nodeRadiusFrom + arrowOffset);
+  const startY = from.y - Math.sin(startAngle) * (nodeRadiusFrom + arrowOffset);
+
+  const endAngle = Math.atan2(to.y - controlY, to.x - controlX);
+  const endX = to.x - Math.cos(endAngle) * (nodeRadiusTo + arrowOffset);
+  const endY = to.y - Math.sin(endAngle) * (nodeRadiusTo + arrowOffset);
 
     return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
   };
@@ -101,11 +104,25 @@ const SociogramGraph: React.FC<Props> = ({
           id="arrowhead"
           markerWidth="10"
           markerHeight="7"
-          refX="9"
+          refX="10"
           refY="3.5"
-          orient="auto"
+          orient="auto-start-reverse"
+          markerUnits="userSpaceOnUse"
         >
           <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+        </marker>
+
+        {/* blue arrow for mutual (double-headed) relationships */}
+        <marker
+          id="blueArrow"
+          markerWidth="10"
+          markerHeight="7"
+          refX="10"
+          refY="3.5"
+          orient="auto-start-reverse"
+          markerUnits="userSpaceOnUse"
+        >
+          <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
         </marker>
       </defs>
 
@@ -136,6 +153,23 @@ const SociogramGraph: React.FC<Props> = ({
           isFirst
         );
 
+        // ถ้าเป็นความสัมพันธ์แบบสองทาง ให้แสดงเป็นเส้นสีฟ้าพร้อมลูกศรสองหัว
+        if (isMutual) {
+          return (
+            <g key={i}>
+              <path
+                d={path}
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth={2.5}
+                opacity={0.9}
+                markerStart="url(#blueArrow)"
+                markerEnd="url(#blueArrow)"
+              />
+            </g>
+          );
+        }
+
         return (
           <g key={i}>
             {/* เส้นหลัก */}
@@ -143,32 +177,10 @@ const SociogramGraph: React.FC<Props> = ({
               d={path}
               fill="none"
               stroke={color}
-              strokeWidth={isMutual ? 2.5 : 1.5}
+              strokeWidth={1.5}
               opacity={0.6}
               markerEnd="url(#arrowhead)"
             />
-            
-            {/* ถ้าเป็นความสัมพันธ์แบบสองทาง ให้วาดลูกศรย้อนกลับ */}
-            {isMutual && (
-              <path
-                d={createCurvePath(
-                  to,
-                  from,
-                  sel.to,
-                  sel.from,
-                  true,
-                  false
-                )}
-                fill="none"
-                stroke={mutualSelection ? 
-                  (mutualSelection.rank === 1 ? '#ef4444' : 
-                   mutualSelection.rank === 2 ? '#3b82f6' : '#9ca3af')
-                  : color}
-                strokeWidth={2.5}
-                opacity={0.6}
-                markerEnd="url(#arrowhead)"
-              />
-            )}
           </g>
         );
       })}
