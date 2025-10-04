@@ -274,6 +274,9 @@ const SociogramApp = () => {
             positions={positions}
             receivedCount={analysis.receivedCount}
             svgRef={svgRef}
+            onUpdatePosition={(id: string, pos: { x: number; y: number }) => {
+              setPositions(prev => ({ ...prev, [id]: pos }));
+            }}
           />
         </div>
       </div>

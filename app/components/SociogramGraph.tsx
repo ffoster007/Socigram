@@ -21,7 +21,8 @@ interface Props {
   selections: Selection[];
   positions: { [key: string]: Position };
   receivedCount: { [key: string]: number };
-  svgRef: React.RefObject<SVGSVGElement>;
+  svgRef: React.RefObject<SVGSVGElement | null>;
+  onUpdatePosition?: (id: string, pos: Position) => void;
 }
 
 const SociogramGraph: React.FC<Props> = ({
@@ -30,7 +31,24 @@ const SociogramGraph: React.FC<Props> = ({
   positions,
   receivedCount,
   svgRef
+  , onUpdatePosition
 }) => {
+  // ref to track currently dragged node id
+  const draggingRef = React.useRef<string | null>(null);
+
+  // helper: convert client coordinates to SVG coordinates
+  const clientToSvgPoint = React.useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: clientX, y: clientY };
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: clientX, y: clientY };
+    const inverse = ctm.inverse();
+    const transformed = pt.matrixTransform(inverse);
+    return { x: transformed.x, y: transformed.y };
+  }, [svgRef]);
   // สร้างฟังก์ชันสำหรับคำนวณเส้นโค้ง
   const createCurvePath = (
     from: Position,
@@ -174,6 +192,35 @@ const SociogramGraph: React.FC<Props> = ({
               stroke="#fff"
               strokeWidth="3"
               className="cursor-pointer hover:opacity-80 transition-opacity"
+              onPointerDown={(e) => {
+                // start dragging
+                const target = e.currentTarget as SVGCircleElement;
+                draggingRef.current = student.id;
+                // capture pointer to this element so we keep receiving events
+                try {
+                  target.setPointerCapture(e.pointerId);
+                } catch {}
+
+                // attach global listeners
+                const onPointerMove = (ev: PointerEvent) => {
+                  if (draggingRef.current !== student.id) return;
+                  const p = clientToSvgPoint(ev.clientX, ev.clientY);
+                  if (onUpdatePosition) onUpdatePosition(student.id, { x: p.x, y: p.y });
+                };
+
+                const onPointerUp = (ev: PointerEvent) => {
+                  if (draggingRef.current !== student.id) return;
+                  try {
+                    target.releasePointerCapture(ev.pointerId);
+                  } catch {}
+                  draggingRef.current = null;
+                  window.removeEventListener('pointermove', onPointerMove);
+                  window.removeEventListener('pointerup', onPointerUp);
+                };
+
+                window.addEventListener('pointermove', onPointerMove);
+                window.addEventListener('pointerup', onPointerUp);
+              }}
             />
             <text
               x={pos.x}
@@ -183,6 +230,7 @@ const SociogramGraph: React.FC<Props> = ({
               fill="white"
               fontSize="16"
               fontWeight="bold"
+              style={{ pointerEvents: 'none' }}
             >
               {student.id}
             </text>
