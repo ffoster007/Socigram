@@ -391,7 +391,7 @@ const SociogramApp = () => {
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">แผนผังความสัมพันธ์ (อัปเดตอัตโนมัติ)</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">แผนผังความสัมพันธ์ (อัปเดตอัตโนมัติ) (หลังจากสร้างแล้ว วงกลมสามารถลากได้)</h3>
               <div className="mb-4 flex gap-4 text-sm items-center">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-1 bg-red-500"></div>
