@@ -124,7 +124,7 @@ const SociogramGraph: React.FC<Props> = ({
         // ถ้าเป็นความสัมพันธ์แบบสองทาง และเป็นเส้นที่สอง ให้ข้ามไป
         if (isMutual && !isFirst) return null;
 
-        const color = sel.rank === 1 ? '#ef4444' : sel.rank === 2 ? '#3b82f6' : '#9ca3af';
+        const color = sel.rank === 1 ? '#27F557' : sel.rank === 2 ? '#F53C27' : '#C900FF';
 
         // สร้าง path สำหรับเส้นโค้ง
         const path = createCurvePath(

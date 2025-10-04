@@ -294,9 +294,9 @@ const SociogramApp = () => {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-800">ตารางความสัมพันธ์ (คลิกเพื่อแก้ไข)</h3>
                 <div className="text-sm text-gray-600">
-                  <span className="inline-block w-3 h-3 bg-red-500 rounded-full mr-1"></span> อันดับ 1
-                  <span className="inline-block w-3 h-3 bg-blue-500 rounded-full ml-3 mr-1"></span> อันดับ 2
-                  <span className="inline-block w-3 h-3 bg-gray-400 rounded-full ml-3 mr-1"></span> อันดับ 3
+                  <span className="inline-block w-3 h-3 bg-[#27F557] rounded-full mr-1"></span> อันดับ 1
+                  <span className="inline-block w-3 h-3 bg-[#F53C27] rounded-full ml-3 mr-1"></span> อันดับ 2
+                  <span className="inline-block w-3 h-3 bg-[#C900FF] rounded-full ml-3 mr-1"></span> อันดับ 3
                 </div>
               </div>
               
@@ -378,15 +378,15 @@ const SociogramApp = () => {
               <h3 className="text-xl font-bold text-gray-800 mb-4">แผนผังความสัมพันธ์ (อัปเดตอัตโนมัติ) (หลังจากสร้างแล้ว วงกลมสามารถลากได้)</h3>
               <div className="mb-4 flex gap-4 text-sm items-center">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-1 bg-red-500"></div>
+                  <div className="w-6 h-1 bg-[#27F557]"></div>
                   <span>อันดับ 1</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-1 bg-blue-500"></div>
+                  <div className="w-6 h-1 bg-[#F53C27]"></div>
                   <span>อันดับ 2</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-1 bg-gray-400"></div>
+                  <div className="w-6 h-1 bg-[#C900FF]"></div>
                   <span>อันดับ 3</span>
                 </div>
                 <div className="ml-auto flex items-center gap-4 text-sm">
