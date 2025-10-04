@@ -23,6 +23,9 @@ interface Props {
   receivedCount: { [key: string]: number };
   svgRef: React.RefObject<SVGSVGElement | null>;
   onUpdatePosition?: (id: string, pos: Position) => void;
+  // optional initial background color (hex) and callback when changed
+  initialBackgroundColor?: string;
+  onBackgroundChange?: (color: string) => void;
 }
 
 const SociogramGraph: React.FC<Props> = ({
@@ -32,6 +35,7 @@ const SociogramGraph: React.FC<Props> = ({
   receivedCount,
   svgRef,
   onUpdatePosition
+  , initialBackgroundColor, onBackgroundChange
 }) => {
   // ref to track currently dragged node id
   const draggingRef = React.useRef<string | null>(null);
@@ -40,6 +44,8 @@ const SociogramGraph: React.FC<Props> = ({
   const [viewBox, setViewBox] = React.useState({ x: 0, y: 0, width: 800, height: 600 });
   const [zoom, setZoom] = React.useState(1);
   const [isPanning, setIsPanning] = React.useState(false);
+  // สีพื้นหลังของแคนวาส (สามารถเปลี่ยนได้โดยผู้ใช้)
+  const [bgColor, setBgColor] = React.useState<string>(initialBackgroundColor || '#ffffff');
   const panStartRef = React.useRef<{ x: number, y: number } | null>(null);
 
   // helper: convert client coordinates to SVG coordinates
@@ -195,6 +201,22 @@ const SociogramGraph: React.FC<Props> = ({
         <div className="text-center text-xs text-gray-600 mt-1">
           {Math.round(zoom * 100)}%
         </div>
+        {/* color picker สำหรับเปลี่ยนสีพื้นหลัง */}
+        <div className="flex items-center gap-2 mt-1">
+          <label htmlFor="bg-color" className="text-xs text-gray-600">พื้นหลัง</label>
+          <input
+            id="bg-color"
+            type="color"
+            value={bgColor}
+            title="เปลี่ยนสีพื้นหลัง"
+            onChange={(e) => {
+              const c = e.target.value;
+              setBgColor(c);
+              try { onBackgroundChange?.(c); } catch {}
+            }}
+            className="w-8 h-8 p-0 border-0"
+          />
+        </div>
       </div>
 
       <svg 
@@ -202,8 +224,9 @@ const SociogramGraph: React.FC<Props> = ({
         width="1200" 
         height="600" 
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
-        className="border border-gray-300 rounded-lg bg-white"
+        className="border border-gray-300 rounded-lg"
         style={{ 
+          backgroundColor: bgColor,
           cursor: isPanning ? 'grabbing' : 'grab',
           touchAction: 'none'
         }}
