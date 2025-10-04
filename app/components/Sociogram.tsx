@@ -66,6 +66,7 @@ const SociogramApp = () => {
   const [editValue, setEditValue] = useState('');
   const [newStudentId, setNewStudentId] = useState('');
   const [newStudentName, setNewStudentName] = useState('');
+  const [listOrientation, setListOrientation] = useState<'vertical' | 'horizontal'>('vertical');
   const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({});
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -272,7 +273,7 @@ const SociogramApp = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <div className="flex items-center gap-3 mb-6">
             <Network className="w-10 h-10 text-purple-600" />
-            <h1 className="text-4xl font-bold text-gray-800">แผนผังสังคมมิติ (Sociogram)</h1>
+            <h1 className="text-4xl font-bold text-gray-800">แผนผังสังคมมิติ (Sociogram by เฮียหนึ่ง)</h1>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -441,10 +442,31 @@ const SociogramApp = () => {
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-semibold text-gray-700 mb-3">รายชื่อนักเรียน</h4>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-gray-700">รายชื่อนักเรียน</h4>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">รูปแบบ:</span>
+                    <button
+                      onClick={() => setListOrientation('vertical')}
+                      className={`px-3 py-1 text-sm rounded-md border ${listOrientation === 'vertical' ? 'bg-purple-600 text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
+                      title="เรียงแนวตั้ง"
+                    >
+                      แนวตั้ง
+                    </button>
+                    <button
+                      onClick={() => setListOrientation('horizontal')}
+                      className={`px-3 py-1 text-sm rounded-md border ${listOrientation === 'horizontal' ? 'bg-purple-600 text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
+                      title="เรียงแนวนอน"
+                    >
+                      แนวนอน
+                    </button>
+                  </div>
+                </div>
+
+                {/* ปรับคลาสคอนเทนเนอร์ตามการเลือกแนว */}
+                <div className={listOrientation === 'horizontal' ? 'grid md:grid-cols-2 lg:grid-cols-3 gap-2' : 'flex flex-col divide-y divide-gray-200'}>
                   {students.map(student => (
-                    <div key={student.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-2 border border-gray-200">
+                    <div key={student.id} className={`flex items-center justify-between bg-white ${listOrientation === 'vertical' ? 'px-4 py-3' : 'px-4 py-2'} rounded-lg ${listOrientation === 'vertical' ? '' : ''} border border-gray-200`}>
                       <span className="font-medium text-gray-800">
                         <span className="text-purple-600 font-bold">{student.id}</span> - {student.name}
                       </span>
