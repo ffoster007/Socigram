@@ -177,10 +177,9 @@ const SociogramApp = () => {
   };
 
   const removeStudent = (id: string) => {
-    if (confirm(`ต้องการลบนักเรียน ${id} ใช่หรือไม่?`)) {
-      setStudents(students.filter(s => s.id !== id));
-      setSelections(selections.filter(s => s.from !== id && s.to !== id));
-    }
+    // ลบนักเรียนทันทีโดยไม่ต้องยืนยัน
+    setStudents(prev => prev.filter(s => s.id !== id));
+    setSelections(prev => prev.filter(s => s.from !== id && s.to !== id));
   };
 
   const getCellValue = (from: string, to: string) => {
@@ -425,7 +424,7 @@ const SociogramApp = () => {
                   />
                   <input
                     type="text"
-                    placeholder="สัญลักษณ์สำหรับหารายชื่อนักเรียน"
+                    placeholder="สัญลักษณ์สำหรับหารายชื่อนักเรียน (ใส่อะไรก็ใส่ไปไม่สำคัญหรอก) "
                     value={newStudentName}
                     onChange={(e) => setNewStudentName(e.target.value)}
                     className="px-4 py-2 text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent flex-1"
