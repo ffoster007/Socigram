@@ -98,8 +98,8 @@ const SociogramApp = () => {
       img.src = image64;
       await imgLoad;
 
-      const width = svg.clientWidth || 800;
-      const height = svg.clientHeight || 600;
+      const width = svg.clientWidth || 1920;
+      const height = svg.clientHeight || 1080;
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -249,7 +249,7 @@ const SociogramApp = () => {
           <div className="w-full flex justify-end gap-2 mb-2">
             <button
               onClick={() => exportAs()}
-              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm"
+              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm cursor-pointer"
             >ดาวน์โหลด JPG</button>
           </div>
           <SociogramGraph
