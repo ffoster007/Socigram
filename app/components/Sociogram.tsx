@@ -1,269 +1,471 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
-import * as d3 from "d3";
 
-type Node = {
+import React, { useState, useMemo, useEffect } from 'react';
+import { Network, Edit2, Plus, Trash2 } from 'lucide-react';
+
+interface Student {
   id: string;
   name: string;
-  x?: number;
-  y?: number;
-  fx?: number | null;
-  fy?: number | null;
-};
+}
 
-type Link = {
-  source: string;
-  target: string;
-};
+interface Selection {
+  from: string;
+  to: string;
+  rank: number;
+}
 
-type D3Node = Node & d3.SimulationNodeDatum;
-type D3Link = d3.SimulationLinkDatum<D3Node> & { source: string | D3Node; target: string | D3Node };
-
-export default function Sociogram() {
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const [nodes, setNodes] = useState<Node[]>([
-    { id: "1", name: "บุคคล 1" },
-    { id: "2", name: "บุคคล 2" },
-    { id: "3", name: "บุคคล 3" },
+const SociogramApp = () => {
+  const [students, setStudents] = useState<Student[]>([
+    { id: 'A', name: 'นักเรียน A' },
+    { id: 'B', name: 'นักเรียน B' },
+    { id: 'C', name: 'นักเรียน C' },
+    { id: 'D', name: 'นักเรียน D' },
+    { id: 'E', name: 'นักเรียน E' },
+    { id: 'F', name: 'นักเรียน F' },
+    { id: 'G', name: 'นักเรียน G' },
+    { id: 'H', name: 'นักเรียน H' },
+    { id: 'I', name: 'นักเรียน I' },
+    { id: 'J', name: 'นักเรียน J' },
   ]);
-  const [links, setLinks] = useState<Link[]>([
-    { source: "1", target: "2" },
-    { source: "2", target: "3" },
-  ]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [nameField, setNameField] = useState("");
-  const [countField, setCountField] = useState(1);
 
-  // init simulation
+  const [selections, setSelections] = useState<Selection[]>([
+    { from: 'A', to: 'B', rank: 1 },
+    { from: 'A', to: 'D', rank: 3 },
+    { from: 'A', to: 'J', rank: 2 },
+    { from: 'B', to: 'C', rank: 2 },
+    { from: 'B', to: 'F', rank: 3 },
+    { from: 'B', to: 'G', rank: 1 },
+    { from: 'C', to: 'A', rank: 3 },
+    { from: 'C', to: 'G', rank: 1 },
+    { from: 'C', to: 'I', rank: 2 },
+    { from: 'D', to: 'C', rank: 2 },
+    { from: 'D', to: 'F', rank: 1 },
+    { from: 'D', to: 'J', rank: 3 },
+    { from: 'E', to: 'A', rank: 1 },
+    { from: 'E', to: 'I', rank: 3 },
+    { from: 'E', to: 'J', rank: 2 },
+    { from: 'F', to: 'B', rank: 1 },
+    { from: 'F', to: 'D', rank: 3 },
+    { from: 'F', to: 'G', rank: 2 },
+    { from: 'G', to: 'B', rank: 2 },
+    { from: 'G', to: 'C', rank: 1 },
+    { from: 'G', to: 'F', rank: 3 },
+    { from: 'H', to: 'B', rank: 3 },
+    { from: 'H', to: 'C', rank: 2 },
+    { from: 'H', to: 'I', rank: 1 },
+    { from: 'I', to: 'A', rank: 1 },
+    { from: 'I', to: 'C', rank: 2 },
+    { from: 'I', to: 'E', rank: 3 },
+    { from: 'J', to: 'A', rank: 1 },
+    { from: 'J', to: 'E', rank: 2 },
+    { from: 'J', to: 'G', rank: 3 },
+  ]);
+
+  const [editingCell, setEditingCell] = useState<{from: string, to: string} | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [newStudentId, setNewStudentId] = useState('');
+  const [newStudentName, setNewStudentName] = useState('');
+  const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({});
+
+  const analysis = useMemo(() => {
+    const receivedCount: {[key: string]: number} = {};
+    students.forEach(s => {
+      receivedCount[s.id] = 0;
+    });
+    selections.forEach(sel => {
+      receivedCount[sel.to]++;
+    });
+    return { receivedCount };
+  }, [selections, students]);
+
+  // localStorage key for persistence
+  const STORAGE_KEY = 'sociogram_v1';
+
+  // Load saved state from localStorage on mount
   useEffect(() => {
-    if (!svgRef.current) return;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed) {
+          if (Array.isArray(parsed.students)) setStudents(parsed.students as Student[]);
+          if (Array.isArray(parsed.selections)) setSelections(parsed.selections as Selection[]);
+        }
+      }
+    } catch {
+      // ignore parse/storage errors
+    }
+  }, []);
 
-    const width = svgRef.current.clientWidth || 800;
-    const height = svgRef.current.clientHeight || 600;
+  // Auto-save (debounced) when students or selections change
+  useEffect(() => {
+    const payload = JSON.stringify({ students, selections });
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, payload);
+      } catch {
+        // ignore storage errors
+      }
+    }, 500);
 
-    // sanitize links: convert any source/target that are names into node references
-    const safeLinks: D3Link[] = links
-      .map((l) => {
-        const resolve = (v: string | D3Node) => {
-          if (typeof v !== "string") return v as D3Node;
-          const byId = nodes.find((n) => n.id === v);
-          if (byId) return byId as D3Node;
-          const byName = nodes.find((n) => n.name === v);
-          if (byName) return byName as D3Node;
-          return null;
-        };
+    return () => clearTimeout(id);
+  }, [students, selections]);
 
-        const s = resolve(l.source as string);
-        const t = resolve(l.target as string);
-        if (s && t) return { source: s, target: t } as D3Link;
-        return null;
-      })
-      .filter((x): x is D3Link => x !== null);
-
-    const simulation = d3
-      .forceSimulation<D3Node>(nodes as unknown as D3Node[])
-      .force(
-        "link",
-        d3
-          .forceLink<D3Node, D3Link>(safeLinks)
-          .id((d: D3Node) => d.id)
-          .distance(120)
-      )
-      .force("charge", d3.forceManyBody<D3Node>().strength(-400))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .on("tick", ticked);
-
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
-
-    const linkG = svg.append("g").attr("class", "links");
-    const nodeG = svg.append("g").attr("class", "nodes");
-
-    const link = linkG
-      .selectAll<SVGLineElement, D3Link>("line")
-      .data(safeLinks)
-      .enter()
-      .append("line")
-      .attr("stroke", "#9CA3AF")
-      .attr("stroke-width", 1.5);
-
-    const node = nodeG
-      .selectAll<SVGGElement, D3Node>("g")
-      .data(nodes as unknown as D3Node[], (d) => (d as D3Node).id);
+  // คำนวณตำแหน่งโหนดอัตโนมัติ
+  useEffect(() => {
+    const centerX = 400;
+    const centerY = 300;
+    const radius = 220;
     
-    // Remove old nodes
-    node.exit().remove();
+    const newPositions: {[key: string]: {x: number, y: number}} = {};
+    students.forEach((s, i) => {
+      const angle = (i / students.length) * 2 * Math.PI - Math.PI / 2;
+      newPositions[s.id] = {
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+    setPositions(newPositions);
+  }, [students]);
+
+  const handleCellClick = (from: string, to: string) => {
+    if (from === to) return;
+    setEditingCell({ from, to });
+    const existing = selections.find(s => s.from === from && s.to === to);
+    setEditValue(existing ? existing.rank.toString() : '');
+  };
+
+  const handleCellSave = () => {
+    if (!editingCell) return;
     
-    // Update existing nodes
-    node.select("text").text((d: D3Node) => d.name);
-    
-    // Add new nodes
-    const nodeEnter = node.enter()
-      .append("g")
-      .call(
-        d3
-          .drag<SVGGElement, D3Node>()
-          .on("start", (event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on("drag", (event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
-          .on("end", (event: d3.D3DragEvent<SVGGElement, D3Node, D3Node>, d: D3Node) => {
-            if (!event.active) simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          })
-      )
-      .on("click", (_event: unknown, d: D3Node) => {
-        setSelectedId(d.id);
-        setNameField(d.name);
+    const value = parseInt(editValue);
+    const newSelections = selections.filter(
+      s => !(s.from === editingCell.from && s.to === editingCell.to)
+    );
+
+    if (!isNaN(value) && value >= 1 && value <= 3) {
+      newSelections.push({
+        from: editingCell.from,
+        to: editingCell.to,
+        rank: value
       });
-
-    nodeEnter
-      .append("circle")
-      .attr("r", 36)
-      .attr("fill", "#60A5FA")
-      .attr("stroke", "#1E3A8A")
-      .attr("stroke-width", 2);
-
-    nodeEnter
-      .append("text")
-      .attr("text-anchor", "middle")
-      .attr("dy", ".35em")
-      .attr("font-size", 12)
-      .attr("fill", "#071422")
-      .text((d: D3Node) => d.name);
-
-    function ticked() {
-      link
-        .attr("x1", (d: D3Link) => (d.source as D3Node).x as number)
-        .attr("y1", (d: D3Link) => (d.source as D3Node).y as number)
-        .attr("x2", (d: D3Link) => (d.target as D3Node).x as number)
-        .attr("y2", (d: D3Link) => (d.target as D3Node).y as number);
-
-      node.attr("transform", (d: D3Node) => `translate(${d.x},${d.y})`);
     }
 
-    return () => {
-      simulation.stop();
-    };
-  }, [nodes, links]);
+    setSelections(newSelections);
+    setEditingCell(null);
+    setEditValue('');
+  };
 
-  function addPeople() {
-    const newNodes: Node[] = [];
-    const currentMax = nodes.length;
-    const startIndex = currentMax + 1;
-    for (let i = 0; i < countField; i++) {
-      const id = String(startIndex + i);
-      newNodes.push({ id, name: `บุคคล ${id}` });
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleCellSave();
+    } else if (e.key === 'Escape') {
+      setEditingCell(null);
+      setEditValue('');
     }
-    setNodes((s) => [...s, ...newNodes]);
-  }
+  };
 
-  function updateSelected() {
-    if (!selectedId) return;
-    setNodes((s) => s.map((n) => (n.id === selectedId ? { ...n, name: nameField } : n)));
-  }
+  const addStudent = () => {
+    if (!newStudentId || !newStudentName) return;
+    if (students.some(s => s.id === newStudentId)) {
+      alert('รหัสนักเรียนซ้ำ');
+      return;
+    }
+    setStudents([...students, { id: newStudentId, name: newStudentName }]);
+    setNewStudentId('');
+    setNewStudentName('');
+  };
 
-  function deleteSelected() {
-    if (!selectedId) return;
-    setNodes((s) => s.filter((n) => n.id !== selectedId));
-    setLinks((l) => l.filter((ln) => ln.source !== selectedId && ln.target !== selectedId));
-    setSelectedId(null);
-    setNameField("");
-  }
+  const removeStudent = (id: string) => {
+    if (confirm(`ต้องการลบนักเรียน ${id} ใช่หรือไม่?`)) {
+      setStudents(students.filter(s => s.id !== id));
+      setSelections(selections.filter(s => s.from !== id && s.to !== id));
+    }
+  };
 
-  function connect(aId: string, bId: string) {
-    if (aId === bId) return;
-    // avoid duplicates
-    if (links.some((l) => (l.source === aId && l.target === bId) || (l.source === bId && l.target === aId))) return;
-    setLinks((l) => [...l, { source: aId, target: bId }]);
-  }
+  const getCellValue = (from: string, to: string) => {
+    const sel = selections.find(s => s.from === from && s.to === to);
+    return sel ? sel.rank : 0;
+  };
+
+  const renderVisualization = () => {
+    return (
+      <div className="bg-gray-50 rounded-lg p-4 flex justify-center">
+        <svg width="800" height="600" className="border border-gray-300 rounded-lg bg-white">
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+            </marker>
+          </defs>
+
+          {selections.map((sel, i) => {
+            const from = positions[sel.from];
+            const to = positions[sel.to];
+            if (!from || !to) return null;
+
+            const isMutual = selections.some(s => s.from === sel.to && s.to === sel.from);
+            const color = sel.rank === 1 ? '#ef4444' : sel.rank === 2 ? '#3b82f6' : '#9ca3af';
+            
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const nodeRadius = 20 + analysis.receivedCount[sel.to] * 8;
+            
+            const offsetX = (dx / dist) * nodeRadius;
+            const offsetY = (dy / dist) * nodeRadius;
+            
+            return (
+              <line
+                key={i}
+                x1={from.x}
+                y1={from.y}
+                x2={to.x - offsetX}
+                y2={to.y - offsetY}
+                stroke={color}
+                strokeWidth={isMutual ? 2.5 : 1.5}
+                opacity={0.6}
+                markerEnd="url(#arrowhead)"
+              />
+            );
+          })}
+
+          {students.map(student => {
+            const pos = positions[student.id];
+            if (!pos) return null;
+            
+            const isIsolated = analysis.receivedCount[student.id] === 0;
+            const isStar = analysis.receivedCount[student.id] >= 4;
+            const size = 20 + analysis.receivedCount[student.id] * 8;
+            
+            return (
+              <g key={student.id}>
+                <circle
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={size}
+                  fill={isIsolated ? '#ef4444' : isStar ? '#fbbf24' : '#8b5cf6'}
+                  stroke="#fff"
+                  strokeWidth="3"
+                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                />
+                <text
+                  x={pos.x}
+                  y={pos.y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="white"
+                  fontSize="16"
+                  fontWeight="bold"
+                >
+                  {student.id}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
 
   return (
-    <div className="w-full max-w-5xl mx-auto p-6 bg-white/80 dark:bg-black/60 rounded-xl shadow-lg">
-      <h2 className="text-2xl font-semibold mb-4">Sociogram (แผนผังสังคมมิติ)</h2>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Network className="w-10 h-10 text-purple-600" />
+            <h1 className="text-4xl font-bold text-gray-800">แผนผังสังคมมิติ (Sociogram)</h1>
+          </div>
 
-      <div className="flex gap-4 mb-4 flex-col sm:flex-row">
-        <div className="flex gap-2 items-center">
-          <label className="text-sm">จำนวนคนที่จะเพิ่ม:</label>
-          <input
-            value={countField}
-            onChange={(e) => setCountField(Number(e.target.value) || 1)}
-            type="number"
-            min={1}
-            className="border px-2 py-1 rounded w-20"
-          />
-          <button onClick={addPeople} className="px-3 py-1 bg-sky-600 text-white rounded">เพิ่ม</button>
-        </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+              <Edit2 className="w-5 h-5" />
+              วิธีการใช้งาน
+            </h3>
+            <ul className="text-blue-800 text-sm space-y-1">
+              <li>• คลิกที่ช่องในตารางเพื่อแก้ไขค่า (ใส่ 1-3 หรือเว้นว่างเพื่อลบ)</li>
+              <li>• กด Enter เพื่อบันทึก หรือ Escape เพื่อยกเลิก</li>
+              <li>• แผนผังจะปรับตัวอัตโนมัติเมื่อมีการเปลี่ยนแปลงข้อมูล</li>
+              <li>• เพิ่มหรือลบนักเรียนได้ด้านล่าง</li>
+            </ul>
+          </div>
 
-        <div className="flex gap-2 items-center">
-          <label className="text-sm">แก้ไขชื่อ:</label>
-          <input
-            value={nameField}
-            onChange={(e) => setNameField(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && updateSelected()}
-            placeholder="เลือกโหนดด้านบนเพื่อแก้ไข"
-            className="border px-2 py-1 rounded"
-          />
-          <button onClick={updateSelected} className="px-3 py-1 bg-amber-500 text-white rounded">บันทึก</button>
-          <button onClick={deleteSelected} className="px-3 py-1 bg-red-600 text-white rounded">ลบ</button>
-        </div>
-      </div>
-
-      <div className="flex gap-4">
-        <div className="flex-1">
-          <svg ref={svgRef} className="w-full h-[520px] bg-gradient-to-br from-white to-sky-50 rounded" />
-        </div>
-
-        <aside className="w-72 p-3 border-l">
-          <h3 className="font-medium mb-2">รายการบุคคล</h3>
-          <div className="flex flex-col gap-2 max-h-[420px] overflow-auto pr-2">
-            {nodes.map((n) => (
-              <div
-                key={n.id}
-                className={`p-2 rounded flex items-center justify-between cursor-pointer ${selectedId === n.id ? "bg-sky-100" : "hover:bg-slate-50"}`}
-                onClick={() => {
-                  setSelectedId(n.id);
-                  setNameField(n.name);
-                }}
-              >
-                <div>
-                  <div className="font-medium">{n.name}</div>
-                  <div className="text-xs text-gray-500">id: {n.id}</div>
+          <div className="space-y-8">
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">ตารางความสัมพันธ์ (คลิกเพื่อแก้ไข)</h3>
+                <div className="text-sm text-gray-600">
+                  <span className="inline-block w-3 h-3 bg-red-500 rounded-full mr-1"></span> อันดับ 1
+                  <span className="inline-block w-3 h-3 bg-blue-500 rounded-full ml-3 mr-1"></span> อันดับ 2
+                  <span className="inline-block w-3 h-3 bg-gray-400 rounded-full ml-3 mr-1"></span> อันดับ 3
                 </div>
-                <div className="flex gap-1">
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse border border-gray-300">
+                  <thead>
+                    <tr className="bg-purple-100">
+                      <th className="border border-gray-300 px-4 py-2 sticky left-0 bg-purple-100">ผู้เลือก ↓ / ผู้ถูกเลือก →</th>
+                      {students.map(s => (
+                        <th key={s.id} className="border border-gray-300 px-4 py-2 text-center min-w-[60px]">
+                          {s.id}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.map(s1 => (
+                      <tr key={s1.id} className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-2 font-semibold bg-purple-50 sticky left-0">
+                          {s1.id}
+                        </td>
+                        {students.map(s2 => {
+                          const isEditing = editingCell?.from === s1.id && editingCell?.to === s2.id;
+                          const value = getCellValue(s1.id, s2.id);
+                          
+                          return (
+                            <td 
+                              key={s2.id} 
+                              className={`border border-gray-300 px-2 py-2 text-center cursor-pointer hover:bg-blue-50 transition-colors ${
+                                s1.id === s2.id ? 'bg-gray-100' : ''
+                              }`}
+                              onClick={() => handleCellClick(s1.id, s2.id)}
+                            >
+                              {s1.id === s2.id ? (
+                                <span className="text-gray-300">—</span>
+                              ) : isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  onBlur={handleCellSave}
+                                  onKeyDown={handleKeyPress}
+                                  className="w-12 h-8 text-center text-black border-2 border-blue-500 rounded focus:outline-none"
+                                  autoFocus
+                                  placeholder="limit 100"
+                                />
+                              ) : value > 0 ? (
+                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-white font-semibold ${
+                                  value === 1 ? 'bg-red-500' : value === 2 ? 'bg-blue-500' : 'bg-gray-400'
+                                }`}>
+                                  {value}
+                                </span>
+                              ) : (
+                                <span className="text-gray-300 text-xs">แก้ไข</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                    <tr className="bg-yellow-50 font-semibold">
+                      <td className="border border-gray-300 px-4 py-2 sticky left-0 bg-yellow-50">
+                        ได้รับเลือก
+                      </td>
+                      {students.map(s => (
+                        <td key={s.id} className="border border-gray-300 px-4 py-2 text-center">
+                          <span className="inline-block bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full font-bold">
+                            {analysis.receivedCount[s.id]}
+                          </span>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">แผนผังความสัมพันธ์ (อัปเดตอัตโนมัติ)</h3>
+              <div className="mb-4 flex gap-4 text-sm items-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-1 bg-red-500"></div>
+                  <span>อันดับ 1</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-1 bg-blue-500"></div>
+                  <span>อันดับ 2</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-1 bg-gray-400"></div>
+                  <span>อันดับ 3</span>
+                </div>
+                <div className="ml-auto flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
+                    <span>ปกติ</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-yellow-400 rounded-full"></div>
+                    <span>ดาวเด่น</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+                    <span>ถูกแยก</span>
+                  </div>
+                </div>
+              </div>
+              {renderVisualization()}
+              <p className="text-sm text-gray-600 mt-2 text-center">
+                * ขนาดของวงกลมแสดงจำนวนครั้งที่ถูกเลือก
+              </p>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-4">จัดการนักเรียน</h3>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-gray-700 mb-3">เพิ่มนักเรียนใหม่</h4>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="รหัส (เช่น K)"
+                    value={newStudentId}
+                    onChange={(e) => setNewStudentId(e.target.value.toUpperCase())}
+                    className="px-4 py-2 text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent w-32"
+                  />
+                  <input
+                    type="text"
+                    placeholder="สัญลักษณ์สำหรับหารายชื่อนักเรียน"
+                    value={newStudentName}
+                    onChange={(e) => setNewStudentName(e.target.value)}
+                    className="px-4 py-2 text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent flex-1"
+                  />
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const other = prompt("เชื่อมต่อกับ id ใด (พิมพ์ id เช่น 3)");
-                      if (other) connect(n.id, other);
-                    }}
-                    className="px-2 py-1 bg-green-500 text-white rounded text-sm"
+                    onClick={addStudent}
+                    disabled={!newStudentId || !newStudentName}
+                    className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
                   >
-                    เชื่อม
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setNodes((s) => s.filter((x) => x.id !== n.id));
-                      setLinks((l) => l.filter((ln) => ln.source !== n.id && ln.target !== n.id));
-                      if (selectedId === n.id) setSelectedId(null);
-                    }}
-                    className="px-2 py-1 bg-red-500 text-white rounded text-sm"
-                  >
-                    ลบ
+                    <Plus className="w-5 h-5" />
+                    เพิ่ม
                   </button>
                 </div>
               </div>
-            ))}
+
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-700 mb-3">รายชื่อนักเรียน</h4>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {students.map(student => (
+                    <div key={student.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-2 border border-gray-200">
+                      <span className="font-medium">
+                        <span className="text-purple-600 font-bold">{student.id}</span> - {student.name}
+                      </span>
+                      <button
+                        onClick={() => removeStudent(student.id)}
+                        className="text-red-500 hover:text-red-700 transition-colors p-1"
+                        title="ลบนักเรียน"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-        </aside>
+        </div>
       </div>
     </div>
   );
-}
+};
+
+export default SociogramApp;
