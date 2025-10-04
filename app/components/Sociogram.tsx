@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Network, Edit2, Plus, Trash2 } from 'lucide-react';
 
 interface Student {
@@ -66,6 +66,72 @@ const SociogramApp = () => {
   const [newStudentId, setNewStudentId] = useState('');
   const [newStudentName, setNewStudentName] = useState('');
   const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({});
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const exportAs = useCallback(async (type: 'jpg' | 'pdf') => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    try {
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svg);
+
+      // add name spaces.
+      if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+      if (!source.match(/^<svg[^>]+xmlns:xlink="http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
+        source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+      }
+
+      const svg64 = btoa(unescape(encodeURIComponent(source)));
+      const image64 = 'data:image/svg+xml;base64,' + svg64;
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const imgLoad = new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = (e) => rej(e);
+      });
+      img.src = image64;
+      await imgLoad;
+
+      const width = svg.clientWidth || 800;
+      const height = svg.clientHeight || 600;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // white background for nicer export
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      if (type === 'jpg') {
+        const data = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = data;
+        a.download = 'sociogram.jpg';
+        a.click();
+      } else {
+        // dynamic import to avoid SSR problems
+        const { jsPDF } = await import('jspdf');
+        const pdf = new jsPDF({
+          orientation: width > height ? 'landscape' : 'portrait',
+          unit: 'pt',
+          format: [width, height]
+        });
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+        pdf.save('sociogram.pdf');
+      }
+    } catch (err) {
+      console.error('Export failed', err);
+      alert('ไม่สามารถดาวน์โหลดได้ (ดูคอนโซล)');
+    }
+  }, []);
 
   const analysis = useMemo(() => {
     const receivedCount: {[key: string]: number} = {};
@@ -190,7 +256,18 @@ const SociogramApp = () => {
   const renderVisualization = () => {
     return (
       <div className="bg-gray-50 rounded-lg p-4 flex justify-center">
-        <svg width="800" height="600" className="border border-gray-300 rounded-lg bg-white">
+        <div className="w-full flex flex-col items-center">
+          <div className="w-full flex justify-end gap-2 mb-2">
+            <button
+              onClick={() => exportAs('jpg')}
+              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm"
+            >ดาวน์โหลด JPG</button>
+            <button
+              onClick={() => exportAs('pdf')}
+              className="px-3 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md text-sm"
+            >ดาวน์โหลด PDF</button>
+          </div>
+          <svg ref={svgRef} width="800" height="600" className="border border-gray-300 rounded-lg bg-white">
           <defs>
             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
               <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
@@ -261,8 +338,9 @@ const SociogramApp = () => {
               </g>
             );
           })}
-        </svg>
+          </svg>
       </div>
+    </div>
     );
   };
 
