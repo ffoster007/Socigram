@@ -34,7 +34,7 @@ http://localhost:3000
 ```
 
 ## รายละเอียดอื่นๆ
--ใช้ localstorage ในการเก็บข้อมูล
+- ใช้ localstorage ในการเก็บข้อมูล
 
 
 
