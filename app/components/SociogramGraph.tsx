@@ -35,6 +35,7 @@ const SociogramGraph: React.FC<Props> = ({
   const createCurvePath = (
     from: Position,
     to: Position,
+    fromId: string,
     toId: string,
     isMutual: boolean,
     isFirst: boolean
@@ -45,20 +46,34 @@ const SociogramGraph: React.FC<Props> = ({
     const midX = (from.x + to.x) / 2;
     const midY = (from.y + to.y) / 2;
 
-    // คำนวณจุดควบคุมสำหรับเส้นโค้ง
-    const curvature = isMutual ? (isFirst ? 50 : -50) : 0;
-    const perpX = -dy / dist * curvature;
-    const perpY = dx / dist * curvature;
+    // ปรับความโค้ง: ถ้าเป็นความสัมพันธ์สองทาง ให้แยกเส้นด้วยค่าบวก/ลบ
+    let curvatureMag = Math.max(40, dist * 0.15);
+    if (!isMutual) {
+      // ให้เส้นทางเดี่ยวโค้งเล็กน้อยเพื่อความสวยงาม
+      curvatureMag = Math.min(20, dist * 0.06);
+    }
+    const sign = isMutual ? (isFirst ? 1 : -1) : 1;
+    const curvature = curvatureMag * sign;
+
+    const perpX = -dy / (dist || 1) * curvature;
+    const perpY = dx / (dist || 1) * curvature;
     const controlX = midX + perpX;
     const controlY = midY + perpY;
 
-    // คำนวณจุดสิ้นสุดที่จะไม่ทับกับโหนด
-    const nodeRadius = 20 + receivedCount[toId] * 8;
-    const angle = Math.atan2(to.y - controlY, to.x - controlX);
-    const endX = to.x - Math.cos(angle) * nodeRadius;
-    const endY = to.y - Math.sin(angle) * nodeRadius;
+    // รัศมีของโหนด (ขึ้นกับจำนวนครั้งที่ถูกเลือก)
+    const nodeRadiusTo = 20 + (receivedCount[toId] || 0) * 8;
+    const nodeRadiusFrom = 20 + (receivedCount[fromId] || 0) * 8;
 
-    return `M ${from.x} ${from.y} Q ${controlX} ${controlY} ${endX} ${endY}`;
+    // ให้เส้นเริ่ม/สิ้นสุดที่ขอบวงกลมของโหนด ไม่ใช่จุดศูนย์กลาง
+    const startAngle = Math.atan2(from.y - controlY, from.x - controlX);
+    const startX = from.x - Math.cos(startAngle) * nodeRadiusFrom;
+    const startY = from.y - Math.sin(startAngle) * nodeRadiusFrom;
+
+    const endAngle = Math.atan2(to.y - controlY, to.x - controlX);
+    const endX = to.x - Math.cos(endAngle) * nodeRadiusTo;
+    const endY = to.y - Math.sin(endAngle) * nodeRadiusTo;
+
+    return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
   };
 
   return (
@@ -97,6 +112,7 @@ const SociogramGraph: React.FC<Props> = ({
         const path = createCurvePath(
           from,
           to,
+          sel.from,
           sel.to,
           isMutual,
           isFirst
@@ -120,6 +136,7 @@ const SociogramGraph: React.FC<Props> = ({
                 d={createCurvePath(
                   to,
                   from,
+                  sel.to,
                   sel.from,
                   true,
                   false
