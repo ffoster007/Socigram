@@ -30,11 +30,17 @@ const SociogramGraph: React.FC<Props> = ({
   selections,
   positions,
   receivedCount,
-  svgRef
-  , onUpdatePosition
+  svgRef,
+  onUpdatePosition
 }) => {
   // ref to track currently dragged node id
   const draggingRef = React.useRef<string | null>(null);
+  
+  // state สำหรับ pan และ zoom
+  const [viewBox, setViewBox] = React.useState({ x: 0, y: 0, width: 800, height: 600 });
+  const [zoom, setZoom] = React.useState(1);
+  const [isPanning, setIsPanning] = React.useState(false);
+  const panStartRef = React.useRef<{ x: number, y: number } | null>(null);
 
   // helper: convert client coordinates to SVG coordinates
   const clientToSvgPoint = React.useCallback((clientX: number, clientY: number) => {
@@ -49,6 +55,70 @@ const SociogramGraph: React.FC<Props> = ({
     const transformed = pt.matrixTransform(inverse);
     return { x: transformed.x, y: transformed.y };
   }, [svgRef]);
+
+  // จัดการ zoom ด้วยปุ่ม
+  const handleZoom = React.useCallback((direction: 'in' | 'out') => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const delta = direction === 'in' ? 0.2 : -0.2;
+    const newZoom = Math.min(Math.max(0.1, zoom + delta), 5);
+    
+    // zoom ไปที่ตรงกลาง canvas
+    const rect = svg.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    // แปลงเป็นพิกัด SVG
+    const svgX = viewBox.x + (centerX / rect.width) * viewBox.width;
+    const svgY = viewBox.y + (centerY / rect.height) * viewBox.height;
+    
+    // คำนวณ viewBox ใหม่โดยให้จุดกลางอยู่ที่เดิม
+    const scale = zoom / newZoom;
+    const newWidth = viewBox.width * scale;
+    const newHeight = viewBox.height * scale;
+    const newX = svgX - (centerX / rect.width) * newWidth;
+    const newY = svgY - (centerY / rect.height) * newHeight;
+    
+    setZoom(newZoom);
+    setViewBox({ x: newX, y: newY, width: newWidth, height: newHeight });
+  }, [zoom, viewBox, svgRef]);
+
+  // รีเซ็ต zoom
+  const handleResetZoom = React.useCallback(() => {
+    setZoom(1);
+    setViewBox({ x: 0, y: 0, width: 800, height: 600 });
+  }, []);
+
+  // จัดการ panning
+  const handlePanStart = React.useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    // เช็คว่าไม่ได้คลิกที่โหนด
+    if ((e.target as SVGElement).tagName === 'circle') return;
+    
+    setIsPanning(true);
+    const svgPoint = clientToSvgPoint(e.clientX, e.clientY);
+    panStartRef.current = svgPoint;
+  }, [clientToSvgPoint]);
+
+  const handlePanMove = React.useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isPanning || !panStartRef.current) return;
+    
+    const svgPoint = clientToSvgPoint(e.clientX, e.clientY);
+    const dx = panStartRef.current.x - svgPoint.x;
+    const dy = panStartRef.current.y - svgPoint.y;
+    
+    setViewBox(prev => ({
+      ...prev,
+      x: prev.x + dx,
+      y: prev.y + dy
+    }));
+  }, [isPanning, clientToSvgPoint]);
+
+  const handlePanEnd = React.useCallback(() => {
+    setIsPanning(false);
+    panStartRef.current = null;
+  }, []);
+
   // สร้างฟังก์ชันสำหรับคำนวณเส้นโค้ง
   const createCurvePath = (
     from: Position,
@@ -78,27 +148,70 @@ const SociogramGraph: React.FC<Props> = ({
     const controlX = midX + perpX;
     const controlY = midY + perpY;
 
-  // รัศมีของโหนด (ขึ้นกับจำนวนครั้งที่ถูกเลือก)
-  const nodeRadiusTo = 20 + (receivedCount[toId] || 0) * 10;
-  const nodeRadiusFrom = 20 + (receivedCount[fromId] || 0) * 10;
+    // รัศมีของโหนด (ขึ้นกับจำนวนครั้งที่ถูกเลือก)
+    const nodeRadiusTo = 20 + (receivedCount[toId] || 0) * 10;
+    const nodeRadiusFrom = 20 + (receivedCount[fromId] || 0) * 10;
 
-  // offset เพื่อให้ลูกศรไม่จมลงในวงกลมของโหนด
-  const arrowOffset = 5; // ปรับได้ตามขนาด marker
+    // offset เพื่อให้ลูกศรไม่จมลงในวงกลมของโหนด
+    const arrowOffset = 5;
 
-  // ให้เส้นเริ่ม/สิ้นสุดที่ขอบวงกลมของโหนด โดยเลื่อนออกไปอีกเล็กน้อยเพื่อเผื่อลูกศร
-  const startAngle = Math.atan2(from.y - controlY, from.x - controlX);
-  const startX = from.x - Math.cos(startAngle) * (nodeRadiusFrom + arrowOffset);
-  const startY = from.y - Math.sin(startAngle) * (nodeRadiusFrom + arrowOffset);
+    // ให้เส้นเริ่ม/สิ้นสุดที่ขอบวงกลมของโหนด โดยเลื่อนออกไปอีกเล็กน้อยเพื่อเผื่อลูกศร
+    const startAngle = Math.atan2(from.y - controlY, from.x - controlX);
+    const startX = from.x - Math.cos(startAngle) * (nodeRadiusFrom + arrowOffset);
+    const startY = from.y - Math.sin(startAngle) * (nodeRadiusFrom + arrowOffset);
 
-  const endAngle = Math.atan2(to.y - controlY, to.x - controlX);
-  const endX = to.x - Math.cos(endAngle) * (nodeRadiusTo + arrowOffset);
-  const endY = to.y - Math.sin(endAngle) * (nodeRadiusTo + arrowOffset);
+    const endAngle = Math.atan2(to.y - controlY, to.x - controlX);
+    const endX = to.x - Math.cos(endAngle) * (nodeRadiusTo + arrowOffset);
+    const endY = to.y - Math.sin(endAngle) * (nodeRadiusTo + arrowOffset);
 
     return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
   };
 
   return (
-    <svg ref={svgRef} width="800" height="600" className="border border-gray-300 rounded-lg bg-white">
+    <div className="relative">
+      {/* ปุ่มควบคุม Zoom */}
+      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white rounded-lg shadow-lg p-2">
+        <button
+          onClick={() => handleZoom('in')}
+          className="w-10 h-10 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-bold text-xl"
+          title="Zoom In"
+        >
+          +
+        </button>
+        <button
+          onClick={() => handleZoom('out')}
+          className="w-10 h-10 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-bold text-xl"
+          title="Zoom Out"
+        >
+          −
+        </button>
+        <button
+          onClick={handleResetZoom}
+          className="w-10 h-10 flex items-center justify-center bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors text-xs"
+          title="Reset Zoom"
+        >
+          1:1
+        </button>
+        <div className="text-center text-xs text-gray-600 mt-1">
+          {Math.round(zoom * 100)}%
+        </div>
+      </div>
+
+      <svg 
+        ref={svgRef} 
+        width="1200" 
+        height="600" 
+        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+        className="border border-gray-300 rounded-lg bg-white"
+        style={{ 
+          cursor: isPanning ? 'grabbing' : 'grab',
+          touchAction: 'none'
+        }}
+        onPointerDown={handlePanStart}
+        onPointerMove={handlePanMove}
+        onPointerUp={handlePanEnd}
+        onPointerLeave={handlePanEnd}
+      >
       <defs>
         <marker
           id="arrowhead"
@@ -204,7 +317,9 @@ const SociogramGraph: React.FC<Props> = ({
               stroke="#fff"
               strokeWidth="3"
               className="cursor-pointer hover:opacity-80 transition-opacity"
+              style={{ cursor: 'pointer' }}
               onPointerDown={(e) => {
+                e.stopPropagation(); // ป้องกันไม่ให้เรียก pan
                 // start dragging
                 const target = e.currentTarget as SVGCircleElement;
                 draggingRef.current = student.id;
@@ -249,7 +364,8 @@ const SociogramGraph: React.FC<Props> = ({
           </g>
         );
       })}
-    </svg>
+      </svg>
+    </div>
   );
 };
 
