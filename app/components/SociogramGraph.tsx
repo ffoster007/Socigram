@@ -236,29 +236,31 @@ const SociogramGraph: React.FC<Props> = ({
         onPointerLeave={handlePanEnd}
       >
       <defs>
+        {/* Enlarged arrowhead for single-direction links */}
         <marker
           id="arrowhead"
-          markerWidth="10"
-          markerHeight="7"
-          refX="10"
-          refY="3.5"
+          markerWidth="16"
+          markerHeight="12"
+          refX="16"
+          refY="6"
           orient="auto-start-reverse"
           markerUnits="userSpaceOnUse"
         >
-          <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+          {/* polygon scaled up to match new marker size */}
+          <polygon points="0 0, 16 6, 0 12" fill="#666" />
         </marker>
 
-        {/* blue arrow for mutual (double-headed) relationships */}
+        {/* blue arrow for mutual (double-headed) relationships - also enlarged */}
         <marker
           id="blueArrow"
-          markerWidth="10"
-          markerHeight="7"
-          refX="10"
-          refY="3.5"
+          markerWidth="16"
+          markerHeight="12"
+          refX="16"
+          refY="6"
           orient="auto-start-reverse"
           markerUnits="userSpaceOnUse"
         >
-          <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+          <polygon points="0 0, 16 6, 0 12" fill="#3b82f6" />
         </marker>
       </defs>
 
