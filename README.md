@@ -1,10 +1,11 @@
 เริ่มใช้งาน
-หลังจาก Clone หรือ โหลด มาแล้ว ก่อนอื่นติดตั้ง Node.js (แนะนำเวอร์ชันล่าสุด) ลิ้งค์ด้านล่าง
+ให้ Clone หรือ โหลดมา กดไปที่ปุ่มสีเขียวที่เขียนว่า ` <> Code ` ดาวน์โหลด ZIP
+หลังจากโหลด หรือ Clone มา ก่อนอื่นติดตั้ง Node.js (แนะนำเวอร์ชันล่าสุด) ลิ้งค์ด้านล่าง
 ```
 https://nodejs.org/en/download
 ```
 ****
-ถ้าเพื่อนๆใช้ Linux ไม่ใช่ Windows หรือ MacOS ให้เปิด Terminal แล้วพิมพ์คำสั่งต่อไปนี้
+ถ้ากรใช้ Linux ไม่ใช่ Windows หรือ MacOS ให้เปิด Terminal แล้วพิมพ์คำสั่งต่อไปนี้
 ```
 sudo apt update
 sudo apt install nodejs
@@ -16,9 +17,9 @@ sudo apt install npm
 ให้ทำการติดตั้ง dependencies ด้วยคำสั่ง
 
 ```
-npm install | npm i force
+npm install
 ```
-** ถ้าติดตั้งไม่ได้ให้ลองรันคำสั่งนี้
+** ถ้าติดตั้งไม่ได้แล้งเกิด Error ให้ลองรันคำสั่งนี้
 ```
 npm install --force หรือ npm install --legacy-peer-deps ถ้าไม่ได้จริงๆใช้ npm i force
 ```
@@ -30,7 +31,7 @@ npm run dev
 
 มันจะรันแอปพลิเคชันที่บราวเซอร์ให้ไปที่เช่น Chrome ให้พิมพ์ต่อไปนี้ที่ URL 
 ```
-http://localhost:3000
+http://localhost:3000 | localhost:3000
 ```
 
 ## รายละเอียดอื่นๆ
@@ -39,4 +40,3 @@ http://localhost:3000
 
 
 ## โปรเจค Repository นี้อยู่ภายใต้ใบอนุญาต MIT License สามารถเอาไปใช้ต่อ ดัดแปลง หรือ แจกจ่ายได้
-- โค๊ตส่วนใหญ่อาจจะเป็น ฺBad Peactice เนื่องจากใช้ AI ด้วยบางส่วน (เพราะเป็นโปรเจคเร่งด่วนเอาพอใช้ได้พอ)
