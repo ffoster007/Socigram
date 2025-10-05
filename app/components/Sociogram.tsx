@@ -69,6 +69,7 @@ const SociogramApp = () => {
   const [newStudentName, setNewStudentName] = useState('');
   const [listOrientation, setListOrientation] = useState<'vertical' | 'horizontal'>('vertical');
   const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({});
+  const [positionsLoaded, setPositionsLoaded] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const exportAs = useCallback(async () => {
@@ -136,6 +137,7 @@ const SociogramApp = () => {
 
   // localStorage key for persistence
   const STORAGE_KEY = 'sociogram_v1';
+  const POSITIONS_STORAGE_KEY = 'sociogram_positions_v1';
 
   // Real-time sync channel (BroadcastChannel)
   const bcRef = useRef<BroadcastChannel | null>(null);
@@ -186,6 +188,27 @@ const SociogramApp = () => {
     } catch {
       // ignore parse/storage errors
     }
+
+    // Load saved positions from localStorage
+    try {
+      const positionsRaw = localStorage.getItem(POSITIONS_STORAGE_KEY);
+      console.log('Loading positions from localStorage:', positionsRaw);
+      if (positionsRaw) {
+        const parsedPositions = JSON.parse(positionsRaw);
+        if (parsedPositions && typeof parsedPositions === 'object') {
+          console.log('Loaded positions:', parsedPositions);
+          setPositions(parsedPositions);
+          setPositionsLoaded(true);
+          return; // ถ้ามีตำแหน่งที่บันทึกไว้แล้ว ให้ใช้ตำแหน่งนั้นแทนการคำนวณใหม่
+        }
+      }
+    } catch (error) {
+      console.error('Error loading positions:', error);
+    }
+    
+    // ถ้าไม่มีตำแหน่งที่บันทึกไว้ ให้ตั้งค่า positionsLoaded เป็น true เพื่อให้คำนวณตำแหน่งใหม่
+    console.log('No saved positions found, will calculate new positions');
+    setPositionsLoaded(true);
   }, []);
 
   // Auto-save (debounced) when students or selections change
@@ -202,22 +225,67 @@ const SociogramApp = () => {
     return () => clearTimeout(id);
   }, [students, selections]);
 
-  // คำนวณตำแหน่งโหนดอัตโนมัติ
+  // Auto-save positions when they change
   useEffect(() => {
+    if (Object.keys(positions).length === 0) return; // ไม่บันทึกถ้ายังไม่มีตำแหน่ง
+    
+    const id = setTimeout(() => {
+      try {
+        console.log('Saving positions to localStorage:', positions);
+        localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(positions));
+      } catch (error) {
+        console.error('Error saving positions:', error);
+      }
+    }, 500);
+
+    return () => clearTimeout(id);
+  }, [positions]);
+
+  // คำนวณตำแหน่งโหนดอัตโนมัติ (เฉพาะเมื่อไม่มีตำแหน่งที่บันทึกไว้)
+  useEffect(() => {
+    // รอให้โหลดตำแหน่งจาก localStorage เสร็จก่อน
+    if (!positionsLoaded) {
+      console.log('Waiting for positions to load...');
+      return;
+    }
+    
+    // เช็คว่ามีตำแหน่งที่บันทึกไว้แล้วหรือไม่
+    const hasSavedPositions = Object.keys(positions).length > 0;
+    console.log('Has saved positions:', hasSavedPositions, 'Positions:', positions);
+    
+    // ถ้ามีตำแหน่งที่บันทึกไว้แล้ว และมีนักเรียนครบ ให้ข้ามการคำนวณใหม่
+    if (hasSavedPositions) {
+      const hasAllStudentPositions = students.every(s => positions[s.id]);
+      console.log('Has all student positions:', hasAllStudentPositions);
+      if (hasAllStudentPositions) {
+        console.log('Using saved positions, skipping calculation');
+        return; // ไม่ต้องคำนวณใหม่
+      }
+    }
+
+    console.log('Calculating new positions...');
+    // คำนวณตำแหน่งใหม่เฉพาะเมื่อจำเป็น
     const centerX = 400;
     const centerY = 300;
     const radius = 220;
     
     const newPositions: {[key: string]: {x: number, y: number}} = {};
     students.forEach((s, i) => {
-      const angle = (i / students.length) * 2 * Math.PI - Math.PI / 2;
-      newPositions[s.id] = {
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle)
-      };
+      // ถ้ามีตำแหน่งเดิมอยู่แล้ว ให้ใช้ตำแหน่งเดิม
+      if (positions[s.id]) {
+        newPositions[s.id] = positions[s.id];
+      } else {
+        // คำนวณตำแหน่งใหม่สำหรับนักเรียนที่ไม่มีตำแหน่ง
+        const angle = (i / students.length) * 2 * Math.PI - Math.PI / 2;
+        newPositions[s.id] = {
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle)
+        };
+      }
     });
+    console.log('Setting new positions:', newPositions);
     setPositions(newPositions);
-  }, [students]);
+  }, [students, positionsLoaded]);
 
   const handleCellClick = (from: string, to: string) => {
     if (from === to) return;
@@ -273,6 +341,23 @@ const SociogramApp = () => {
     setSelections(prev => prev.filter(s => s.from !== id && s.to !== id));
   };
 
+  const resetPositions = () => {
+    // รีเซ็ตตำแหน่งเป็นค่า default (วงกลม)
+    const centerX = 400;
+    const centerY = 300;
+    const radius = 220;
+    
+    const newPositions: {[key: string]: {x: number, y: number}} = {};
+    students.forEach((s, i) => {
+      const angle = (i / students.length) * 2 * Math.PI - Math.PI / 2;
+      newPositions[s.id] = {
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+    setPositions(newPositions);
+  };
+
   const getCellValue = (from: string, to: string) => {
     const sel = selections.find(s => s.from === from && s.to === to);
     return sel ? sel.rank : 0;
@@ -283,6 +368,11 @@ const SociogramApp = () => {
       <div className="bg-gray-50 rounded-lg p-4 flex justify-center">
         <div className="w-full flex flex-col items-center">
           <div className="w-full flex justify-end gap-2 mb-2">
+            <button
+              onClick={resetPositions}
+              className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm cursor-pointer"
+              title="รีเซ็ตตำแหน่งโหนดเป็นวงกลม"
+            >รีเซ็ตตำแหน่ง</button>
             <button
               onClick={() => exportAs()}
               className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm cursor-pointer"
@@ -322,6 +412,7 @@ const SociogramApp = () => {
               <li>• กด Enter เพื่อบันทึก หรือ Escape เพื่อยกเลิก</li>
               <li>• แผนผังจะปรับตัวอัตโนมัติเมื่อมีการเปลี่ยนแปลงข้อมูล เพราะใช้ LocalStorage</li>
               <li>• ถ้าผู้เลือกซึ่งกันและกันระแบบจะเปลี่ยนไปใช้ลูกศรสองหัวอัตโนมัติ</li>
+              <li>• <strong>ลากวงกลมเพื่อจัดเรียงตำแหน่งตามต้องการ - ตำแหน่งจะถูกบันทึกอัตโนมัติ</strong></li>
               <li>• เพิ่มหรือลบนักเรียนได้ด้านล่าง</li>
             </ul>
           </div>
@@ -418,7 +509,8 @@ const SociogramApp = () => {
               **Note
             </h3>
             <ul className="text-blue-800 text-sm space-y-1">
-              <li>• ถึงแม้ว่าจะบันทึกเป็น localstorage แต่เมื่อ กด Refresh แล้วข้อมูลใน แผนผังจะกลับมารวมกันเป็นวงกลม แต่ข้อมูลที่บันทึกยังคงอยู่ หน้าที่จัดแผนผังยังเป็นหน้าที่ของผู้ใช้งาน</li>
+              <li>• <strong>ตำแหน่งโหนดจะถูกบันทึกอัตโนมัติ</strong></li>
+              <li>• ใช้ปุ่ม รีเซ็ตตำแหน่ง เพื่อกลับไปเป็นวงกลม default ได้</li>
               <li>
                 • โปรเจกต์นี้อยู่ภายใต้ใบอนุญาต MIT สามารถใช้ แก้ไข และแจกจ่ายได้ <a href="https://github.com/ffoster007/Socigram" target="_blank"rel="noopener noreferrer"> https://github.com/ffoster007/Socigram </a>
               </li>
