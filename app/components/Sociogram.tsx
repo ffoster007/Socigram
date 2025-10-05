@@ -415,7 +415,7 @@ const SociogramApp = () => {
               <h3 className="text-xl font-bold text-gray-800 mb-4">แผนผังความสัมพันธ์ (อัปเดตอัตโนมัติ) (หลังจากสร้างแล้ว วงกลมสามารถลากได้)</h3>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              ข้อควรรู้
+              **Note
             </h3>
             <ul className="text-blue-800 text-sm space-y-1">
               <li>• ถึงแม้ว่าจะบันทึกเป็น localstorage แต่เมื่อ กด Refresh แล้วข้อมูลใน แผนผังจะกลับมารวมกันเป็นวงกลม แต่ข้อมูลที่บันทึกยังคงอยู่ หน้าที่จัดแผนผังยังเป็นหน้าที่ของผู้ใช้งาน</li>
