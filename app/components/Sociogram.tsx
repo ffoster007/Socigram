@@ -419,6 +419,10 @@ const SociogramApp = () => {
             </h3>
             <ul className="text-blue-800 text-sm space-y-1">
               <li>• ถึงแม้ว่าจะบันทึกเป็น localstorage แต่เมื่อ กด Refresh แล้วข้อมูลใน แผนผังจะกลับมารวมกันเป็นวงกลม แต่ข้อมูลที่บันทึกยังคงอยู่ หน้าที่จัดแผนผังยังเป็นหน้าที่ของผู้ใช้งาน</li>
+              <li>
+                • โปรเจกต์นี้อยู่ภายใต้ใบอนุญาต MIT สามารถใช้ แก้ไข และแจกจ่ายได้ <a href="https://github.com/ffoster007/Socigram" target="_blank"rel="noopener noreferrer"> https://github.com/ffoster007/Socigram </a>
+              </li>
+
             </ul>
           </div>
               <div className="mb-4 flex gap-4 text-sm items-center">
