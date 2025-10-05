@@ -309,18 +309,18 @@ const SociogramApp = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <div className="flex items-center gap-3 mb-6">
             <Network className="w-10 h-10 text-purple-600" />
-            <h1 className="text-4xl font-bold text-gray-800">แผนผังสังคมมิติ (Sociogram by เฮียหนึ่ง)</h1>
+            <h1 className="text-4xl font-bold text-gray-800">แผนผังสังคมมิติ (Sociogram by หนึ่ง)</h1>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
               <Edit2 className="w-5 h-5" />
-              วิธีการใช้งาน
+              วิธีใช้
             </h3>
             <ul className="text-blue-800 text-sm space-y-1">
               <li>• คลิกที่ช่องในตารางเพื่อแก้ไขค่า (ใส่ 1-3 หรือเว้นว่างเพื่อลบ)</li>
               <li>• กด Enter เพื่อบันทึก หรือ Escape เพื่อยกเลิก</li>
-              <li>• แผนผังจะปรับตัวอัตโนมัติเมื่อมีการเปลี่ยนแปลงข้อมูล</li>
+              <li>• แผนผังจะปรับตัวอัตโนมัติเมื่อมีการเปลี่ยนแปลงข้อมูล เพราะใช้ LocalStorage</li>
               <li>• เพิ่มหรือลบนักเรียนได้ด้านล่าง</li>
             </ul>
           </div>
@@ -412,6 +412,14 @@ const SociogramApp = () => {
 
             <div>
               <h3 className="text-xl font-bold text-gray-800 mb-4">แผนผังความสัมพันธ์ (อัปเดตอัตโนมัติ) (หลังจากสร้างแล้ว วงกลมสามารถลากได้)</h3>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+              ข้อควรรู้
+            </h3>
+            <ul className="text-blue-800 text-sm space-y-1">
+              <li>• ถึงแม้ว่าจะบันทึกเป็น localstorage แต่เมื่อ กด Refresh แล้วข้อมูลใน แผนผังจะกลับมารวมกันเป็นวงกลม แต่ข้อมูลที่บันทึกยังคงอยู่ หน้าที่จัดแผนผังยังเป็นหน้าที่ของผู้ใช้งาน</li>
+            </ul>
+          </div>
               <div className="mb-4 flex gap-4 text-sm items-center">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-1 bg-[#27F557]"></div>
