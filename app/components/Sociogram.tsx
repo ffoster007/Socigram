@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Network, Edit2, Plus, Trash2 } from 'lucide-react';
 import SociogramGraph from './SociogramGraph';
+import TopStudentsDashboard from './TopStudentsDashboard';
 
 interface Student {
   id: string;
@@ -135,6 +136,41 @@ const SociogramApp = () => {
 
   // localStorage key for persistence
   const STORAGE_KEY = 'sociogram_v1';
+
+  // Real-time sync channel (BroadcastChannel)
+  const bcRef = useRef<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    try {
+      const bc = new BroadcastChannel('sociogram_updates');
+      bcRef.current = bc;
+      bc.onmessage = (ev) => {
+        const data = ev.data;
+        if (!data || data.type !== 'selections_update') return;
+        try {
+          if (Array.isArray(data.selections)) setSelections(data.selections as Selection[]);
+          if (Array.isArray(data.students)) setStudents(data.students as Student[]);
+        } catch (err) {
+          // ignore malformed messages
+        }
+      };
+
+      return () => {
+        try { bc.close(); } catch {}
+      };
+    } catch (err) {
+      // BroadcastChannel not supported - ignore
+    }
+  }, []);
+
+  // broadcast updates to other tabs/windows
+  useEffect(() => {
+    const bc = bcRef.current;
+    if (!bc) return;
+    try {
+      bc.postMessage({ type: 'selections_update', selections, students });
+    } catch {}
+  }, [selections, students]);
 
   // Load saved state from localStorage on mount
   useEffect(() => {
@@ -341,7 +377,7 @@ const SociogramApp = () => {
                                   onKeyDown={handleKeyPress}
                                   className="w-12 h-8 text-center text-black border-2 border-blue-500 rounded focus:outline-none"
                                   autoFocus
-                                  placeholder="limit 100"
+                                  placeholder="1-3"
                                 />
                               ) : value > 0 ? (
                                 <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-white font-semibold ${
@@ -404,10 +440,18 @@ const SociogramApp = () => {
                   </div>
                 </div>
               </div>
-              {renderVisualization()}
-              <p className="text-sm text-gray-600 mt-2 text-center">
-                * ขนาดของวงกลมแสดงจำนวนครั้งที่ถูกเลือก
-              </p>
+
+<div className="space-y-6">
+                <div>
+                  {renderVisualization()}
+                  <p className="text-sm text-gray-600 mt-2 text-center">
+                    * ขนาดของวงกลมแสดงจำนวนครั้งที่ถูกเลือก
+                  </p>
+                </div>
+                <div>
+                  <TopStudentsDashboard students={students} receivedCount={analysis.receivedCount} maxItems={6} />
+                </div>
+              </div>
             </div>
 
             <div className="border-t pt-6">
