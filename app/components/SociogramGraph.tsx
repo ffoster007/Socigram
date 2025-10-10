@@ -3,6 +3,7 @@ import React from 'react';
 interface Student {
   id: string;
   name: string;
+  gender?: 'male' | 'female';
 }
 
 interface Selection {
@@ -99,7 +100,8 @@ const SociogramGraph: React.FC<Props> = ({
   // จัดการ panning
   const handlePanStart = React.useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     // เช็คว่าไม่ได้คลิกที่โหนด
-    if ((e.target as SVGElement).tagName === 'circle') return;
+    const tag = (e.target as SVGElement).tagName;
+    if (tag === 'circle' || tag === 'rect' || tag === 'g') return;
     
     setIsPanning(true);
     const svgPoint = clientToSvgPoint(e.clientX, e.clientY);
@@ -332,48 +334,58 @@ const SociogramGraph: React.FC<Props> = ({
         const isStar = receivedCount[student.id] >= 4;
         const size = 20 + receivedCount[student.id] * 8;
         
+        const startDrag = (e: React.PointerEvent<SVGGElement>) => {
+          e.stopPropagation();
+          const target = e.currentTarget as SVGGElement;
+          draggingRef.current = student.id;
+          try {
+            target.setPointerCapture(e.pointerId);
+          } catch {}
+
+          const onPointerMove = (ev: PointerEvent) => {
+            if (draggingRef.current !== student.id) return;
+            const p = clientToSvgPoint(ev.clientX, ev.clientY);
+            if (onUpdatePosition) onUpdatePosition(student.id, { x: p.x, y: p.y });
+          };
+
+          const onPointerUp = (ev: PointerEvent) => {
+            if (draggingRef.current !== student.id) return;
+            try {
+              (target as unknown as Element).releasePointerCapture(ev.pointerId);
+            } catch {}
+            draggingRef.current = null;
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+          };
+
+          window.addEventListener('pointermove', onPointerMove);
+          window.addEventListener('pointerup', onPointerUp);
+        };
+
         return (
-          <g key={student.id}>
-            <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={size}
-              fill={isIsolated ? '#ef4444' : isStar ? '#fbbf24' : '#8b5cf6'}
-              stroke="#fff"
-              strokeWidth="3"
-              className="cursor-pointer hover:opacity-80 transition-opacity"
-              style={{ cursor: 'pointer' }}
-              onPointerDown={(e) => {
-                e.stopPropagation(); // ป้องกันไม่ให้เรียก pan
-                // start dragging
-                const target = e.currentTarget as SVGCircleElement;
-                draggingRef.current = student.id;
-                // capture pointer to this element so we keep receiving events
-                try {
-                  target.setPointerCapture(e.pointerId);
-                } catch {}
-
-                // attach global listeners
-                const onPointerMove = (ev: PointerEvent) => {
-                  if (draggingRef.current !== student.id) return;
-                  const p = clientToSvgPoint(ev.clientX, ev.clientY);
-                  if (onUpdatePosition) onUpdatePosition(student.id, { x: p.x, y: p.y });
-                };
-
-                const onPointerUp = (ev: PointerEvent) => {
-                  if (draggingRef.current !== student.id) return;
-                  try {
-                    target.releasePointerCapture(ev.pointerId);
-                  } catch {}
-                  draggingRef.current = null;
-                  window.removeEventListener('pointermove', onPointerMove);
-                  window.removeEventListener('pointerup', onPointerUp);
-                };
-
-                window.addEventListener('pointermove', onPointerMove);
-                window.addEventListener('pointerup', onPointerUp);
-              }}
-            />
+          <g key={student.id} onPointerDown={startDrag} style={{ cursor: 'pointer' }}>
+            {student.gender === 'female' ? (
+              <rect
+                x={pos.x - size}
+                y={pos.y - size}
+                width={size * 2}
+                height={size * 2}
+                fill={isIsolated ? '#ef4444' : isStar ? '#fbbf24' : '#8b5cf6'}
+                stroke="#fff"
+                strokeWidth="3"
+                className="hover:opacity-80 transition-opacity"
+              />
+            ) : (
+              <circle
+                cx={pos.x}
+                cy={pos.y}
+                r={size}
+                fill={isIsolated ? '#ef4444' : isStar ? '#fbbf24' : '#8b5cf6'}
+                stroke="#fff"
+                strokeWidth="3"
+                className="hover:opacity-80 transition-opacity"
+              />
+            )}
             <text
               x={pos.x}
               y={pos.y}

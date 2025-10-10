@@ -8,6 +8,7 @@ import TopStudentsDashboard from './TopStudentsDashboard';
 interface Student {
   id: string;
   name: string;
+  gender?: 'male' | 'female';
 }
 
 interface Selection {
@@ -67,6 +68,7 @@ const SociogramApp = () => {
   const [editValue, setEditValue] = useState('');
   const [newStudentId, setNewStudentId] = useState('');
   const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentGender, setNewStudentGender] = useState<'' | 'male' | 'female'>('');
   const [listOrientation, setListOrientation] = useState<'vertical' | 'horizontal'>('vertical');
   const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({});
   const [positionsLoaded, setPositionsLoaded] = useState(false);
@@ -330,9 +332,10 @@ const SociogramApp = () => {
       alert('รหัสนักเรียนซ้ำ');
       return;
     }
-    setStudents([...students, { id: newStudentId, name: newStudentName }]);
+    setStudents([...students, { id: newStudentId, name: newStudentName, gender: newStudentGender || undefined }]);
     setNewStudentId('');
     setNewStudentName('');
+    setNewStudentGender('');
   };
 
   const removeStudent = (id: string) => {
@@ -564,10 +567,10 @@ const SociogramApp = () => {
               
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <h4 className="font-semibold text-gray-700 mb-3">เพิ่มนักเรียนใหม่</h4>
-                <div className="flex gap-3">
+                <div className="flex gap-3 items-center flex-wrap">
                   <input
                     type="text"
-                    placeholder="รหัส (เช่น K)"
+                    placeholder="เลขที่"
                     value={newStudentId}
                     onChange={(e) => setNewStudentId(e.target.value.toUpperCase())}
                     className="px-4 py-2 text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent w-32"
@@ -579,6 +582,21 @@ const SociogramApp = () => {
                     onChange={(e) => setNewStudentName(e.target.value)}
                     className="px-4 py-2 text-black border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent flex-1"
                   />
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">เพศ:</span>
+                    <button
+                      type="button"
+                      onClick={() => setNewStudentGender('male')}
+                      className={`px-3 py-2 text-sm rounded-md border ${newStudentGender === 'male' ? 'bg-blue-600 text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
+                      title="ชาย"
+                    >ชาย</button>
+                    <button
+                      type="button"
+                      onClick={() => setNewStudentGender('female')}
+                      className={`px-3 py-2 text-sm rounded-md border ${newStudentGender === 'female' ? 'bg-pink-600 text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
+                      title="หญิง"
+                    >หญิง</button>
+                  </div>
                   <button
                     onClick={addStudent}
                     disabled={!newStudentId || !newStudentName}
@@ -615,17 +633,34 @@ const SociogramApp = () => {
                 {/* ปรับคลาสคอนเทนเนอร์ตามการเลือกแนว */}
                 <div className={listOrientation === 'horizontal' ? 'grid md:grid-cols-2 lg:grid-cols-3 gap-2' : 'flex flex-col divide-y divide-gray-200'}>
                   {students.map(student => (
-                    <div key={student.id} className={`flex items-center justify-between bg-white ${listOrientation === 'vertical' ? 'px-4 py-3' : 'px-4 py-2'} rounded-lg ${listOrientation === 'vertical' ? '' : ''} border border-gray-200`}>
+                    <div key={student.id} className={`flex items-center justify-between bg-white ${listOrientation === 'vertical' ? 'px-4 py-3' : 'px-4 py-2'} rounded-lg border border-gray-200`}>
                       <span className="font-medium text-gray-800">
                         <span className="text-purple-600 font-bold">{student.id}</span> - {student.name}
                       </span>
-                      <button
-                        onClick={() => removeStudent(student.id)}
-                        className="text-red-500 hover:text-red-700 transition-colors p-1"
-                        title="ลบนักเรียน"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1" title="เลือก/เปลี่ยนเพศ">
+                          <button
+                            onClick={() => setStudents(prev => prev.map(s => s.id === student.id ? { ...s, gender: 'male' } : s))}
+                            className={`px-2 py-1 text-xs rounded-md border ${student.gender === 'male' ? 'bg-blue-600 text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
+                          >ชาย</button>
+                          <button
+                            onClick={() => setStudents(prev => prev.map(s => s.id === student.id ? { ...s, gender: 'female' } : s))}
+                            className={`px-2 py-1 text-xs rounded-md border ${student.gender === 'female' ? 'bg-pink-600 text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
+                          >หญิง</button>
+                          <button
+                            onClick={() => setStudents(prev => prev.map(s => s.id === student.id ? { ...s, gender: undefined } : s))}
+                            className={`px-2 py-1 text-xs rounded-md border ${!student.gender ? 'bg-gray-600 text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`}
+                            title="ล้างค่าเพศ"
+                          >ไม่ระบุ</button>
+                        </div>
+                        <button
+                          onClick={() => removeStudent(student.id)}
+                          className="text-red-500 hover:text-red-700 transition-colors p-1"
+                          title="ลบนักเรียน"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
