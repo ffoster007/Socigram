@@ -1,19 +1,3 @@
-เริ่มใช้งาน
-ให้ Clone หรือ โหลดมา กดไปที่ปุ่มสีเขียวที่เขียนว่า ` <> Code ` ดาวน์โหลด ZIP
-หลังจากโหลด หรือ Clone มา ก่อนอื่นติดตั้ง Node.js (แนะนำเวอร์ชันล่าสุด) ลิ้งค์ด้านล่าง
-```
-https://nodejs.org/en/download
-```
-****
-ถ้ากรใช้ Linux ไม่ใช่ Windows หรือ MacOS ให้เปิด Terminal แล้วพิมพ์คำสั่งต่อไปนี้
-```
-sudo apt update
-sudo apt install nodejs
-sudo apt install npm
-```
-****
-จากนั้นเข้าไปที่โฟลเดอร์โปรเจคที่เรา Clone หรือ โหลดมา
-
 ให้ทำการติดตั้ง dependencies ด้วยคำสั่ง
 
 ```
