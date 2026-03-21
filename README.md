@@ -18,6 +18,15 @@ npm run dev
 http://localhost:3000 | localhost:3000
 ```
 
+
+## Electron
+Build
+```
+npm run dist
+```
+ไฟล์สำหรับติดตั้งจะอยู่ที่ dist ชื่อ (yourappname) setup  0.1.0
+
+
 ## รายละเอียดอื่นๆ
 - ใช้ localstorage ในการเก็บข้อมูล
 

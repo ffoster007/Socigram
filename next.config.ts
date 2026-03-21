@@ -1,7 +1,23 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
-};
+const nextConfig = {
+  output: 'export',        // ← ต้องมี
+  images: {
+    unoptimized: true      // ← ต้องมี
+  },
+  assetPrefix: './',       // ← เพิ่มนี้ด้วย สำคัญมากสำหรับ Electron
+}
 
-export default nextConfig;
+export default nextConfig as NextConfig;
+
+// ============== เผื่อ Error ใช้ โค๊ดนี้ ====================
+
+// const nextConfig = {
+//   output: 'export',        // ← ต้องมี
+//   images: {
+//     unoptimized: true      // ← ต้องมี
+//   },
+//   assetPrefix: './',       // ← เพิ่มนี้ด้วย สำคัญมากสำหรับ Electron
+// }
+
+// export default nextConfig
