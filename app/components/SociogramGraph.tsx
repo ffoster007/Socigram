@@ -1,4 +1,18 @@
+'use client';
+
 import React from 'react';
+import cytoscape, { Core, ElementDefinition, NodeSingular } from 'cytoscape';
+// @ts-ignore - cytoscape-klay ไม่มี type definitions
+import klay from 'cytoscape-klay';
+
+// ลงทะเบียน klay extension ครั้งเดียว (กัน register ซ้ำตอน HMR/Next.js)
+if (typeof cytoscape('layout', 'klay') === 'undefined' || !cytoscape('layout', 'klay')) {
+  try {
+    cytoscape.use(klay);
+  } catch {
+    // already registered
+  }
+}
 
 interface Student {
   id: string;
@@ -22,162 +36,232 @@ interface Props {
   selections: Selection[];
   positions: { [key: string]: Position };
   receivedCount: { [key: string]: number };
-  svgRef: React.RefObject<SVGSVGElement | null>;
+  // เปลี่ยนจาก svgRef (SVGSVGElement) เป็น containerRef (HTMLDivElement)
+  containerRef?: React.RefObject<HTMLDivElement | null>;
   onUpdatePosition?: (id: string, pos: Position) => void;
-  // optional initial background color (hex) and callback when changed
   initialBackgroundColor?: string;
   onBackgroundChange?: (color: string) => void;
 }
+
+// แปลง rank -> สีเส้น (เหมือนของเดิม)
+const rankColor = (rank: number) => {
+  if (rank === 1) return '#27F557';
+  if (rank === 2) return '#F53C27';
+  return '#C900FF';
+};
+
+// แปลง receivedCount -> สีโหนด
+const nodeColor = (count: number) => {
+  if (count === 0) return '#ef4444'; // isolated
+  if (count >= 4) return '#fbbf24';  // star
+  return '#8b5cf6';
+};
+
+// แปลง receivedCount -> ขนาดโหนด (diameter)
+const nodeSize = (count: number) => 40 + count * 16; // เดิม radius = 20 + count*8
 
 const SociogramGraph: React.FC<Props> = ({
   students,
   selections,
   positions,
   receivedCount,
-  svgRef,
-  onUpdatePosition
-  , initialBackgroundColor, onBackgroundChange
+  containerRef,
+  onUpdatePosition,
+  initialBackgroundColor,
+  onBackgroundChange,
 }) => {
-  // ref to track currently dragged node id
-  const draggingRef = React.useRef<string | null>(null);
-  
-  // state สำหรับ pan และ zoom
-  const [viewBox, setViewBox] = React.useState({ x: 0, y: 0, width: 800, height: 600 });
-  const [zoom, setZoom] = React.useState(1);
-  const [isPanning, setIsPanning] = React.useState(false);
-  // สีพื้นหลังของแคนวาส (สามารถเปลี่ยนได้โดยผู้ใช้)
+  const internalRef = React.useRef<HTMLDivElement | null>(null);
+  const containerElRef = containerRef ?? internalRef;
+  const cyRef = React.useRef<Core | null>(null);
+
   const [bgColor, setBgColor] = React.useState<string>(initialBackgroundColor || '#ffffff');
-  const panStartRef = React.useRef<{ x: number, y: number } | null>(null);
+  const [zoomPct, setZoomPct] = React.useState(100);
 
-  // helper: convert client coordinates to SVG coordinates
-  const clientToSvgPoint = React.useCallback((clientX: number, clientY: number) => {
-    const svg = svgRef.current;
-    if (!svg) return { x: clientX, y: clientY };
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return { x: clientX, y: clientY };
-    const inverse = ctm.inverse();
-    const transformed = pt.matrixTransform(inverse);
-    return { x: transformed.x, y: transformed.y };
-  }, [svgRef]);
+  // --- สร้าง elements (nodes + edges) จาก props ---
+  const buildElements = React.useCallback((): ElementDefinition[] => {
+    const elements: ElementDefinition[] = [];
 
-  // จัดการ zoom ด้วยปุ่ม
-  const handleZoom = React.useCallback((direction: 'in' | 'out') => {
-    const svg = svgRef.current;
-    if (!svg) return;
+    // nodes
+    students.forEach((student) => {
+      const pos = positions[student.id];
+      elements.push({
+        data: {
+          id: student.id,
+          label: student.id,
+          count: receivedCount[student.id] || 0,
+          gender: student.gender || 'male',
+        },
+        position: pos ? { x: pos.x, y: pos.y } : undefined,
+      });
+    });
 
-    const delta = direction === 'in' ? 0.2 : -0.2;
-    const newZoom = Math.min(Math.max(0.1, zoom + delta), 5);
-    
-    // zoom ไปที่ตรงกลาง canvas
-    const rect = svg.getBoundingClientRect();
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    
-    // แปลงเป็นพิกัด SVG
-    const svgX = viewBox.x + (centerX / rect.width) * viewBox.width;
-    const svgY = viewBox.y + (centerY / rect.height) * viewBox.height;
-    
-    // คำนวณ viewBox ใหม่โดยให้จุดกลางอยู่ที่เดิม
-    const scale = zoom / newZoom;
-    const newWidth = viewBox.width * scale;
-    const newHeight = viewBox.height * scale;
-    const newX = svgX - (centerX / rect.width) * newWidth;
-    const newY = svgY - (centerY / rect.height) * newHeight;
-    
-    setZoom(newZoom);
-    setViewBox({ x: newX, y: newY, width: newWidth, height: newHeight });
-  }, [zoom, viewBox, svgRef]);
+    // edges (รวม mutual ให้เหลือเส้นเดียว เหมือนของเดิม)
+    selections.forEach((sel, i) => {
+      const mutual = selections.find((s) => s.from === sel.to && s.to === sel.from);
+      const isMutual = !!mutual;
+      const isFirst = isMutual && sel.from < sel.to;
 
-  // รีเซ็ต zoom
-  const handleResetZoom = React.useCallback(() => {
-    setZoom(1);
-    setViewBox({ x: 0, y: 0, width: 800, height: 600 });
-  }, []);
+      if (isMutual && !isFirst) return; // ข้ามเส้นที่สองของคู่ mutual
 
-  // จัดการ panning
-  const handlePanStart = React.useCallback((e: React.PointerEvent<SVGSVGElement>) => {
-    // เช็คว่าไม่ได้คลิกที่โหนด
-    const tag = (e.target as SVGElement).tagName;
-    if (tag === 'circle' || tag === 'rect' || tag === 'g') return;
-    
-    setIsPanning(true);
-    const svgPoint = clientToSvgPoint(e.clientX, e.clientY);
-    panStartRef.current = svgPoint;
-  }, [clientToSvgPoint]);
+      elements.push({
+        data: {
+          id: `e${i}-${sel.from}-${sel.to}`,
+          source: sel.from,
+          target: sel.to,
+          rank: sel.rank,
+          mutual: isMutual,
+        },
+      });
+    });
 
-  const handlePanMove = React.useCallback((e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isPanning || !panStartRef.current) return;
-    
-    const svgPoint = clientToSvgPoint(e.clientX, e.clientY);
-    const dx = panStartRef.current.x - svgPoint.x;
-    const dy = panStartRef.current.y - svgPoint.y;
-    
-    setViewBox(prev => ({
-      ...prev,
-      x: prev.x + dx,
-      y: prev.y + dy
-    }));
-  }, [isPanning, clientToSvgPoint]);
+    return elements;
+  }, [students, selections, positions, receivedCount]);
 
-  const handlePanEnd = React.useCallback(() => {
-    setIsPanning(false);
-    panStartRef.current = null;
-  }, []);
+  // --- สร้าง cytoscape instance ---
+  React.useEffect(() => {
+    const container = containerElRef.current;
+    if (!container) return;
 
-  // สร้างฟังก์ชันสำหรับคำนวณเส้นโค้ง
-  const createCurvePath = (
-    from: Position,
-    to: Position,
-    fromId: string,
-    toId: string,
-    isMutual: boolean,
-    isFirst: boolean
-  ) => {
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const midX = (from.x + to.x) / 2;
-    const midY = (from.y + to.y) / 2;
+    const hasAllPositions = students.every((s) => positions[s.id]);
 
-    // ปรับความโค้ง: ถ้าเป็นความสัมพันธ์สองทาง ให้แยกเส้นด้วยค่าบวก/ลบ
-    let curvatureMag = Math.max(40, dist * 0.15);
-    if (!isMutual) {
-      // ให้เส้นทางเดี่ยวโค้งเล็กน้อยเพื่อความสวยงาม
-      curvatureMag = Math.min(20, dist * 0.06);
+    const cy = cytoscape({
+      container,
+      elements: buildElements(),
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'background-color': (ele: NodeSingular) => nodeColor(ele.data('count')),
+            shape: (ele: NodeSingular) => (ele.data('gender') === 'female' ? 'rectangle' : 'ellipse'),
+            width: (ele: NodeSingular) => nodeSize(ele.data('count')),
+            height: (ele: NodeSingular) => nodeSize(ele.data('count')),
+            label: 'data(label)',
+            color: '#ffffff',
+            'font-size': 16,
+            'font-weight': 'bold',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'border-width': 3,
+            'border-color': '#ffffff',
+          },
+        },
+        {
+          selector: 'node:active',
+          style: {
+            'overlay-opacity': 0.15,
+          },
+        },
+        // edge ปกติ (ทางเดียว) - สีตาม rank
+        {
+          selector: 'edge[?mutual]',
+          style: {
+            'curve-style': 'bezier',
+            width: 2.5,
+            'line-color': '#3b82f6',
+            'target-arrow-color': '#3b82f6',
+            'source-arrow-color': '#3b82f6',
+            'target-arrow-shape': 'triangle',
+            'source-arrow-shape': 'triangle',
+            opacity: 0.9,
+          },
+        },
+        {
+          selector: 'edge[!mutual]',
+          style: {
+            'curve-style': 'bezier',
+            width: 1.5,
+            'line-color': (ele) => rankColor(ele.data('rank')),
+            'target-arrow-color': (ele) => rankColor(ele.data('rank')),
+            'target-arrow-shape': 'triangle',
+            opacity: 0.6,
+          },
+        },
+      ],
+      layout: hasAllPositions
+        ? { name: 'preset' }
+        : {
+            name: 'klay',
+            // @ts-ignore - klay-specific options
+            klay: {
+              direction: 'DOWN',
+              spacing: 60,
+              nodeLayering: 'NETWORK_SIMPLEX',
+              edgeRouting: 'SPLINES',
+            },
+          },
+      minZoom: 0.1,
+      maxZoom: 5,
+      wheelSensitivity: 0.2,
+    });
+
+    cyRef.current = cy;
+
+    // ถ้าใช้ klay layout (ไม่มี position มาก่อน) ให้เซฟตำแหน่งที่คำนวณได้กลับไป
+    if (!hasAllPositions && onUpdatePosition) {
+      cy.one('layoutstop', () => {
+        cy.nodes().forEach((node) => {
+          const p = node.position();
+          onUpdatePosition(node.id(), { x: p.x, y: p.y });
+        });
+      });
     }
-    const sign = isMutual ? (isFirst ? 1 : -1) : 1;
-    const curvature = curvatureMag * sign;
 
-    const perpX = -dy / (dist || 1) * curvature;
-    const perpY = dx / (dist || 1) * curvature;
-    const controlX = midX + perpX;
-    const controlY = midY + perpY;
+    // ลากโหนด -> อัปเดตตำแหน่ง
+    cy.on('drag', 'node', (evt) => {
+      const node = evt.target;
+      const p = node.position();
+      onUpdatePosition?.(node.id(), { x: p.x, y: p.y });
+    });
 
-    // รัศมีของโหนด (ขึ้นกับจำนวนครั้งที่ถูกเลือก)
-    const nodeRadiusTo = 20 + (receivedCount[toId] || 0) * 10;
-    const nodeRadiusFrom = 20 + (receivedCount[fromId] || 0) * 10;
+    // sync zoom % ไปแสดงที่ UI
+    const syncZoom = () => setZoomPct(Math.round(cy.zoom() * 100));
+    cy.on('zoom', syncZoom);
+    syncZoom();
 
-    // offset เพื่อให้ลูกศรไม่จมลงในวงกลมของโหนด
-    const arrowOffset = 5;
+    return () => {
+      cy.destroy();
+      cyRef.current = null;
+    };
+    // ต้องการ re-init เฉพาะตอน students/selections เปลี่ยนโครงสร้างจริง ๆ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students.length, selections.length]);
 
-    // ให้เส้นเริ่ม/สิ้นสุดที่ขอบวงกลมของโหนด โดยเลื่อนออกไปอีกเล็กน้อยเพื่อเผื่อลูกศร
-    const startAngle = Math.atan2(from.y - controlY, from.x - controlX);
-    const startX = from.x - Math.cos(startAngle) * (nodeRadiusFrom + arrowOffset);
-    const startY = from.y - Math.sin(startAngle) * (nodeRadiusFrom + arrowOffset);
+  // --- อัปเดต style/ข้อมูลโหนดเมื่อ receivedCount/gender เปลี่ยน โดยไม่ rebuild ทั้งกราฟ ---
+  React.useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    students.forEach((student) => {
+      const node = cy.getElementById(student.id);
+      if (node && node.length) {
+        node.data('count', receivedCount[student.id] || 0);
+        node.data('gender', student.gender || 'male');
+      }
+    });
+    cy.style().update();
+  }, [students, receivedCount]);
 
-    const endAngle = Math.atan2(to.y - controlY, to.x - controlX);
-    const endX = to.x - Math.cos(endAngle) * (nodeRadiusTo + arrowOffset);
-    const endY = to.y - Math.sin(endAngle) * (nodeRadiusTo + arrowOffset);
+  // --- zoom controls ---
+  const handleZoom = (direction: 'in' | 'out') => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const factor = direction === 'in' ? 1.2 : 1 / 1.2;
+    const newZoom = Math.min(Math.max(0.1, cy.zoom() * factor), 5);
+    cy.zoom({
+      level: newZoom,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
+  };
 
-    return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
+  const handleResetZoom = () => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.zoom(1);
+    cy.center();
   };
 
   return (
     <div className="relative">
-      {/* ปุ่มควบคุม Zoom */}
+      {/* ปุ่มควบคุม Zoom + สีพื้นหลัง */}
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white rounded-lg shadow-lg p-2">
         <button
           onClick={() => handleZoom('in')}
@@ -200,10 +284,8 @@ const SociogramGraph: React.FC<Props> = ({
         >
           1:1
         </button>
-        <div className="text-center text-xs text-gray-600 mt-1">
-          {Math.round(zoom * 100)}%
-        </div>
-        {/* color picker สำหรับเปลี่ยนสีพื้นหลัง */}
+        <div className="text-center text-xs text-gray-600 mt-1">{zoomPct}%</div>
+
         <div className="flex items-center gap-2 mt-1">
           <label htmlFor="bg-color" className="text-xs text-gray-600">พื้นหลัง</label>
           <input
@@ -214,194 +296,24 @@ const SociogramGraph: React.FC<Props> = ({
             onChange={(e) => {
               const c = e.target.value;
               setBgColor(c);
-              try { onBackgroundChange?.(c); } catch {}
+              try {
+                onBackgroundChange?.(c);
+              } catch {}
             }}
             className="w-8 h-8 p-0 border-0"
           />
         </div>
       </div>
 
-      <svg 
-        ref={svgRef} 
-        width="1200" 
-        height="600" 
-        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
-        className="border border-gray-300 rounded-lg"
-        style={{ 
+      <div
+        ref={containerElRef}
+        style={{
+          width: 1200,
+          height: 600,
           backgroundColor: bgColor,
-          cursor: isPanning ? 'grabbing' : 'grab',
-          touchAction: 'none'
         }}
-        onPointerDown={handlePanStart}
-        onPointerMove={handlePanMove}
-        onPointerUp={handlePanEnd}
-        onPointerLeave={handlePanEnd}
-      >
-      <defs>
-        {/* Enlarged arrowhead for single-direction links */}
-        <marker
-          id="arrowhead"
-          markerWidth="16"
-          markerHeight="12"
-          refX="16"
-          refY="6"
-          orient="auto-start-reverse"
-          markerUnits="userSpaceOnUse"
-        >
-          {/* polygon scaled up to match new marker size */}
-          <polygon points="0 0, 16 6, 0 12" fill="#666" />
-        </marker>
-
-        {/* blue arrow for mutual (double-headed) relationships - also enlarged */}
-        <marker
-          id="blueArrow"
-          markerWidth="16"
-          markerHeight="12"
-          refX="16"
-          refY="6"
-          orient="auto-start-reverse"
-          markerUnits="userSpaceOnUse"
-        >
-          <polygon points="0 0, 16 6, 0 12" fill="#3b82f6" />
-        </marker>
-      </defs>
-
-      {/* วาดเส้นเชื่อมความสัมพันธ์ */}
-      {selections.map((sel, i) => {
-        const from = positions[sel.from];
-        const to = positions[sel.to];
-        if (!from || !to) return null;
-
-        const mutualSelection = selections.find(
-          s => s.from === sel.to && s.to === sel.from
-        );
-        const isMutual = !!mutualSelection;
-        const isFirst = isMutual && sel.from < sel.to;
-        
-        // ถ้าเป็นความสัมพันธ์แบบสองทาง และเป็นเส้นที่สอง ให้ข้ามไป
-        if (isMutual && !isFirst) return null;
-        // สีลูกศรขึ้นกับอันดับที่ถูกเลือก
-        const color = sel.rank === 1 ? '#27F557' : sel.rank === 2 ? '#F53C27' : '#C900FF';
-
-        // สร้าง path สำหรับเส้นโค้ง
-        const path = createCurvePath(
-          from,
-          to,
-          sel.from,
-          sel.to,
-          isMutual,
-          isFirst
-        );
-
-        // ถ้าเป็นความสัมพันธ์แบบสองทาง ให้แสดงเป็นเส้นสีฟ้าพร้อมลูกศรสองหัว
-        if (isMutual) {
-          return (
-            <g key={i}>
-              <path
-                d={path}
-                fill="none"
-                stroke="#3b82f6"
-                strokeWidth={2.5}
-                opacity={0.9}
-                markerStart="url(#blueArrow)"
-                markerEnd="url(#blueArrow)"
-              />
-            </g>
-          );
-        }
-
-        return (
-          <g key={i}>
-            {/* เส้นหลัก */}
-            <path
-              d={path}
-              fill="none"
-              stroke={color}
-              strokeWidth={1.5}
-              opacity={0.6}
-              markerEnd="url(#arrowhead)"
-            />
-          </g>
-        );
-      })}
-
-      {/* วาดโหนดนักเรียน */}
-      {students.map(student => {
-        const pos = positions[student.id];
-        if (!pos) return null;
-        
-        const isIsolated = receivedCount[student.id] === 0;
-        const isStar = receivedCount[student.id] >= 4;
-        const size = 20 + receivedCount[student.id] * 8;
-        
-        const startDrag = (e: React.PointerEvent<SVGGElement>) => {
-          e.stopPropagation();
-          const target = e.currentTarget as SVGGElement;
-          draggingRef.current = student.id;
-          try {
-            target.setPointerCapture(e.pointerId);
-          } catch {}
-
-          const onPointerMove = (ev: PointerEvent) => {
-            if (draggingRef.current !== student.id) return;
-            const p = clientToSvgPoint(ev.clientX, ev.clientY);
-            if (onUpdatePosition) onUpdatePosition(student.id, { x: p.x, y: p.y });
-          };
-
-          const onPointerUp = (ev: PointerEvent) => {
-            if (draggingRef.current !== student.id) return;
-            try {
-              (target as unknown as Element).releasePointerCapture(ev.pointerId);
-            } catch {}
-            draggingRef.current = null;
-            window.removeEventListener('pointermove', onPointerMove);
-            window.removeEventListener('pointerup', onPointerUp);
-          };
-
-          window.addEventListener('pointermove', onPointerMove);
-          window.addEventListener('pointerup', onPointerUp);
-        };
-
-        return (
-          <g key={student.id} onPointerDown={startDrag} style={{ cursor: 'pointer' }}>
-            {student.gender === 'female' ? (
-              <rect
-                x={pos.x - size}
-                y={pos.y - size}
-                width={size * 2}
-                height={size * 2}
-                fill={isIsolated ? '#ef4444' : isStar ? '#fbbf24' : '#8b5cf6'}
-                stroke="#fff"
-                strokeWidth="3"
-                className="hover:opacity-80 transition-opacity"
-              />
-            ) : (
-              <circle
-                cx={pos.x}
-                cy={pos.y}
-                r={size}
-                fill={isIsolated ? '#ef4444' : isStar ? '#fbbf24' : '#8b5cf6'}
-                stroke="#fff"
-                strokeWidth="3"
-                className="hover:opacity-80 transition-opacity"
-              />
-            )}
-            <text
-              x={pos.x}
-              y={pos.y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fill="white"
-              fontSize="16"
-              fontWeight="bold"
-              style={{ pointerEvents: 'none' }}
-            >
-              {student.id}
-            </text>
-          </g>
-        );
-      })}
-      </svg>
+        className="border border-gray-300 rounded-lg"
+      />
     </div>
   );
 };
