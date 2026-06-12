@@ -1,32 +1,52 @@
-ให้ทำการติดตั้ง dependencies ด้วยคำสั่ง
+# Socigram
 
-```
+Social diagram tools for connecting children in the classroom.
+
+<img src="public/logos.png" alt="Logo" width="300">
+
+
+## Getting Started
+
+### 1. Install dependencies
+
+```bash
 npm install
 ```
-** ถ้าติดตั้งไม่ได้แล้งเกิด Error ให้ลองรันคำสั่งนี้
-```
-npm install --force หรือ npm install --legacy-peer-deps ถ้าไม่ได้จริงๆใช้ npm i force
-```
-เริ่มต้นใช้งานให้รันคำสั่งใน Terminal
 
+If installation fails with errors, try one of the following:
+
+```bash
+npm install --force
+# or
+npm install --legacy-peer-deps
 ```
+
+### 2. Run the development server
+
+```bash
 npm run dev
 ```
 
-มันจะรันแอปพลิเคชันที่บราวเซอร์ให้ไปที่เช่น Chrome ให้พิมพ์ต่อไปนี้ที่ URL 
+Then open your browser and go to:
+
 ```
-http://localhost:3000 | localhost:3000
+http://localhost:3000
 ```
 
+## Electron (Desktop App)
 
-## Electron
-Build
-```
+To build the desktop application:
+
+```bash
 npm run dist
 ```
-ไฟล์สำหรับติดตั้งจะอยู่ที่ dist ชื่อ (yourappname) setup  0.1.0
 
+The installer will be generated in the `dist` folder (e.g. `YourAppName Setup 0.1.0`).
 
-## รายละเอียดอื่นๆ
-- ใช้ localstorage ในการเก็บข้อมูล
+## Notes
 
+- Data is stored locally using `localStorage`.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
