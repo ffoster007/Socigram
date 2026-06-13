@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Network, Edit2, Plus, Trash2 } from 'lucide-react';
-import SociogramGraph from './SociogramGraph';
+import SociogramGraph, { SociogramGraphHandle } from './SociogramGraph';
 import TopStudentsDashboard from './TopStudentsDashboard';
 
 interface Student {
@@ -72,58 +72,10 @@ const SociogramApp = () => {
   const [listOrientation, setListOrientation] = useState<'vertical' | 'horizontal'>('vertical');
   const [positions, setPositions] = useState<{[key: string]: {x: number, y: number}}>({});
   const [positionsLoaded, setPositionsLoaded] = useState(false);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const graphRef = useRef<SociogramGraphHandle>(null);
 
-  const exportAs = useCallback(async () => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    try {
-      const serializer = new XMLSerializer();
-      let source = serializer.serializeToString(svg);
-
-      // add name spaces.
-      if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
-        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
-      }
-      if (!source.match(/^<svg[^>]+xmlns:xlink="http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
-        source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
-      }
-
-      const svg64 = btoa(unescape(encodeURIComponent(source)));
-      const image64 = 'data:image/svg+xml;base64,' + svg64;
-
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      const imgLoad = new Promise<void>((res, rej) => {
-        img.onload = () => res();
-        img.onerror = (e) => rej(e);
-      });
-      img.src = image64;
-      await imgLoad;
-
-      const width = svg.clientWidth || 1920;
-      const height = svg.clientHeight || 1080;
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // white background for nicer export
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      const data = canvas.toDataURL('image/jpeg', 0.95);
-      const a = document.createElement('a');
-      a.href = data;
-      a.download = 'sociogram.jpg';
-      a.click();
-    } catch (err) {
-      console.error('Export failed', err);
-      alert('ไม่สามารถดาวน์โหลดได้ (ดูคอนโซล)');
-    }
+  const exportAs = useCallback(() => {
+    graphRef.current?.exportImage('sociogram.jpg');
   }, []);
 
   const analysis = useMemo(() => {
@@ -358,7 +310,9 @@ const SociogramApp = () => {
         y: centerY + radius * Math.sin(angle)
       };
     });
+
     setPositions(newPositions);
+    graphRef.current?.applyPositions(newPositions);
   };
 
   const getCellValue = (from: string, to: string) => {
@@ -382,11 +336,11 @@ const SociogramApp = () => {
             >ดาวน์โหลด JPG</button>
           </div>
           <SociogramGraph
+            ref={graphRef}
             students={students}
             selections={selections}
             positions={positions}
             receivedCount={analysis.receivedCount}
-            svgRef={svgRef}
             onUpdatePosition={(id: string, pos: { x: number; y: number }) => {
               setPositions(prev => ({ ...prev, [id]: pos }));
             }}
@@ -402,7 +356,7 @@ const SociogramApp = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <div className="flex items-center gap-3 mb-6">
             <Network className="w-10 h-10 text-purple-600" />
-            <h1 className="text-4xl font-bold text-gray-800">แผนผังสังคมมิติ (Sociogram by หนึ่ง)</h1>
+            <h1 className="text-4xl font-bold text-gray-800">แผนผังสังคมมิติ</h1>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -514,9 +468,6 @@ const SociogramApp = () => {
             <ul className="text-blue-800 text-sm space-y-1">
               <li>• <strong>ตำแหน่งโหนดจะถูกบันทึกอัตโนมัติ</strong></li>
               <li>• ใช้ปุ่ม รีเซ็ตตำแหน่ง เพื่อกลับไปเป็นวงกลม default ได้</li>
-              <li>
-                • โปรเจกต์นี้อยู่ภายใต้ใบอนุญาต MIT สามารถใช้ แก้ไข และแจกจ่ายได้ <a href="https://github.com/ffoster007/Socigram" target="_blank"rel="noopener noreferrer"> https://github.com/ffoster007/Socigram </a>
-              </li>
 
             </ul>
           </div>

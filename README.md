@@ -4,6 +4,20 @@ Social diagram tools for connecting children in the classroom.
 
 <img src="public/logos.png" alt="Logo" width="300">
 
+## 📸 Screenshots
+
+<div align="center">
+<table>
+<tr>
+<td><img src="./public/table.png" alt="Screenshot 1" width="100%"/></td>
+<td><img src="./public/soci.jpg" alt="Screenshot 2" width="100%"/></td>
+</tr>
+<tr>
+<td><img src="./public/students.png" alt="Screenshot 3" width="100%"/></td>
+<td><img src="./public/wew.png" alt="Screenshot 4" width="100%"/></td>
+</tr>
+</table>
+</div>
 
 ## Getting Started
 

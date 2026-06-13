@@ -5,13 +5,10 @@ import cytoscape, { Core, ElementDefinition, NodeSingular } from 'cytoscape';
 // @ts-ignore - cytoscape-klay ไม่มี type definitions
 import klay from 'cytoscape-klay';
 
-// ลงทะเบียน klay extension ครั้งเดียว (กัน register ซ้ำตอน HMR/Next.js)
-if (typeof cytoscape('layout', 'klay') === 'undefined' || !cytoscape('layout', 'klay')) {
-  try {
-    cytoscape.use(klay);
-  } catch {
-    // already registered
-  }
+try {
+  cytoscape.use(klay);
+} catch {
+  // already registered (HMR)
 }
 
 interface Student {
@@ -31,57 +28,55 @@ interface Position {
   y: number;
 }
 
+export interface SociogramGraphHandle {
+  /** ดาวน์โหลดกราฟปัจจุบันเป็น JPG */
+  exportImage: (filename?: string) => void;
+  /** สั่งย้ายตำแหน่ง node ทั้งหมดตาม positions ที่ส่งเข้ามา (ใช้ตอนรีเซ็ตตำแหน่ง) */
+  applyPositions: (positions: { [key: string]: Position }) => void;
+}
+
 interface Props {
   students: Student[];
   selections: Selection[];
   positions: { [key: string]: Position };
   receivedCount: { [key: string]: number };
-  // เปลี่ยนจาก svgRef (SVGSVGElement) เป็น containerRef (HTMLDivElement)
-  containerRef?: React.RefObject<HTMLDivElement | null>;
   onUpdatePosition?: (id: string, pos: Position) => void;
   initialBackgroundColor?: string;
   onBackgroundChange?: (color: string) => void;
 }
 
-// แปลง rank -> สีเส้น (เหมือนของเดิม)
 const rankColor = (rank: number) => {
   if (rank === 1) return '#27F557';
   if (rank === 2) return '#F53C27';
   return '#C900FF';
 };
 
-// แปลง receivedCount -> สีโหนด
 const nodeColor = (count: number) => {
-  if (count === 0) return '#ef4444'; // isolated
-  if (count >= 4) return '#fbbf24';  // star
+  if (count === 0) return '#ef4444';
+  if (count >= 4) return '#fbbf24';
   return '#8b5cf6';
 };
 
-// แปลง receivedCount -> ขนาดโหนด (diameter)
-const nodeSize = (count: number) => 40 + count * 16; // เดิม radius = 20 + count*8
+const nodeSize = (count: number) => 40 + count * 16;
 
-const SociogramGraph: React.FC<Props> = ({
+const SociogramGraph = React.forwardRef<SociogramGraphHandle, Props>(({
   students,
   selections,
   positions,
   receivedCount,
-  containerRef,
   onUpdatePosition,
   initialBackgroundColor,
   onBackgroundChange,
-}) => {
-  const internalRef = React.useRef<HTMLDivElement | null>(null);
-  const containerElRef = containerRef ?? internalRef;
+}, ref) => {
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
   const cyRef = React.useRef<Core | null>(null);
 
   const [bgColor, setBgColor] = React.useState<string>(initialBackgroundColor || '#ffffff');
   const [zoomPct, setZoomPct] = React.useState(100);
 
-  // --- สร้าง elements (nodes + edges) จาก props ---
   const buildElements = React.useCallback((): ElementDefinition[] => {
     const elements: ElementDefinition[] = [];
 
-    // nodes
     students.forEach((student) => {
       const pos = positions[student.id];
       elements.push({
@@ -95,13 +90,12 @@ const SociogramGraph: React.FC<Props> = ({
       });
     });
 
-    // edges (รวม mutual ให้เหลือเส้นเดียว เหมือนของเดิม)
     selections.forEach((sel, i) => {
       const mutual = selections.find((s) => s.from === sel.to && s.to === sel.from);
       const isMutual = !!mutual;
       const isFirst = isMutual && sel.from < sel.to;
 
-      if (isMutual && !isFirst) return; // ข้ามเส้นที่สองของคู่ mutual
+      if (isMutual && !isFirst) return;
 
       elements.push({
         data: {
@@ -117,12 +111,12 @@ const SociogramGraph: React.FC<Props> = ({
     return elements;
   }, [students, selections, positions, receivedCount]);
 
-  // --- สร้าง cytoscape instance ---
+  // --- สร้าง cytoscape instance (ครั้งเดียวตอน mount / เมื่อจำนวน node-edge เปลี่ยน) ---
   React.useEffect(() => {
-    const container = containerElRef.current;
+    const container = containerRef.current;
     if (!container) return;
 
-    const hasAllPositions = students.every((s) => positions[s.id]);
+    const hasAllPositions = students.length > 0 && students.every((s) => positions[s.id]);
 
     const cy = cytoscape({
       container,
@@ -147,11 +141,8 @@ const SociogramGraph: React.FC<Props> = ({
         },
         {
           selector: 'node:active',
-          style: {
-            'overlay-opacity': 0.15,
-          },
+          style: { 'overlay-opacity': 0.15 },
         },
-        // edge ปกติ (ทางเดียว) - สีตาม rank
         {
           selector: 'edge[?mutual]',
           style: {
@@ -196,7 +187,6 @@ const SociogramGraph: React.FC<Props> = ({
 
     cyRef.current = cy;
 
-    // ถ้าใช้ klay layout (ไม่มี position มาก่อน) ให้เซฟตำแหน่งที่คำนวณได้กลับไป
     if (!hasAllPositions && onUpdatePosition) {
       cy.one('layoutstop', () => {
         cy.nodes().forEach((node) => {
@@ -206,14 +196,12 @@ const SociogramGraph: React.FC<Props> = ({
       });
     }
 
-    // ลากโหนด -> อัปเดตตำแหน่ง
     cy.on('drag', 'node', (evt) => {
       const node = evt.target;
       const p = node.position();
       onUpdatePosition?.(node.id(), { x: p.x, y: p.y });
     });
 
-    // sync zoom % ไปแสดงที่ UI
     const syncZoom = () => setZoomPct(Math.round(cy.zoom() * 100));
     cy.on('zoom', syncZoom);
     syncZoom();
@@ -222,11 +210,10 @@ const SociogramGraph: React.FC<Props> = ({
       cy.destroy();
       cyRef.current = null;
     };
-    // ต้องการ re-init เฉพาะตอน students/selections เปลี่ยนโครงสร้างจริง ๆ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [students.length, selections.length]);
 
-  // --- อัปเดต style/ข้อมูลโหนดเมื่อ receivedCount/gender เปลี่ยน โดยไม่ rebuild ทั้งกราฟ ---
+  // --- อัปเดต data (count/gender) เมื่อเปลี่ยน โดยไม่ rebuild กราฟ ---
   React.useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -239,6 +226,50 @@ const SociogramGraph: React.FC<Props> = ({
     });
     cy.style().update();
   }, [students, receivedCount]);
+
+  // --- sync bgColor กับ cytoscape canvas (สำหรับ export) ---
+  React.useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.style.backgroundColor = bgColor;
+    }
+  }, [bgColor]);
+
+  // --- expose imperative API ให้ parent ---
+  React.useImperativeHandle(ref, () => ({
+    exportImage: (filename = 'sociogram.jpg') => {
+      const cy = cyRef.current;
+      if (!cy) return;
+      try {
+        const dataUri = cy.jpg({
+          output: 'base64uri',
+          bg: bgColor,
+          full: true,
+          scale: 2,
+          quality: 0.95,
+        });
+        const a = document.createElement('a');
+        a.href = dataUri;
+        a.download = filename;
+        a.click();
+      } catch (err) {
+        console.error('Export failed', err);
+        alert('ไม่สามารถดาวน์โหลดได้ (ดูคอนโซล)');
+      }
+    },
+    applyPositions: (newPositions) => {
+      const cy = cyRef.current;
+      if (!cy) return;
+      cy.batch(() => {
+        Object.entries(newPositions).forEach(([id, pos]) => {
+          const node = cy.getElementById(id);
+          if (node && node.length) {
+            node.position({ x: pos.x, y: pos.y });
+          }
+        });
+      });
+      cy.fit(undefined, 40);
+    },
+  }), [bgColor]);
 
   // --- zoom controls ---
   const handleZoom = (direction: 'in' | 'out') => {
@@ -261,7 +292,6 @@ const SociogramGraph: React.FC<Props> = ({
 
   return (
     <div className="relative">
-      {/* ปุ่มควบคุม Zoom + สีพื้นหลัง */}
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white rounded-lg shadow-lg p-2">
         <button
           onClick={() => handleZoom('in')}
@@ -306,7 +336,7 @@ const SociogramGraph: React.FC<Props> = ({
       </div>
 
       <div
-        ref={containerElRef}
+        ref={containerRef}
         style={{
           width: 1200,
           height: 600,
@@ -316,6 +346,8 @@ const SociogramGraph: React.FC<Props> = ({
       />
     </div>
   );
-};
+});
+
+SociogramGraph.displayName = 'SociogramGraph';
 
 export default SociogramGraph;
